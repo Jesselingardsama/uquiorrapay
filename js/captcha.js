@@ -1,6 +1,6 @@
 // Proteção anti-robô (Cloudflare Turnstile) nos formulários de entrar, criar conta e recuperar senha.
 // Só fica ativa quando a chave do site (pública) é guardada em Admin → Definições.
-import { state, tr } from "./ui.js?v=202610091700";
+import { state, tr } from "./ui.js?v=202610092030";
 
 let loader;
 function load() {

@@ -2730,12 +2730,3 @@ a.stat.kpi:hover{border-color:#355045;transform:translateY(-2px)}
 .mc-tabs{margin:4px 0 18px}
 .mc-h .tab-n{margin-left:6px;vertical-align:middle}
 .mc-type{display:inline-block;font-size:11.5px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
-/* Documentação da API */
-.api-doc pre{background:#0F1A14;color:#E6F0EA;padding:14px 16px;border-radius:12px;overflow:auto;font-size:12.5px;line-height:1.5;margin:10px 0 16px}
-.api-doc pre code{background:none;color:inherit;padding:0}
-.api-doc code{background:#F1F4F2;padding:2px 6px;border-radius:6px;font-size:12.5px;word-break:break-all}
-.api-ep{display:flex;gap:10px;align-items:center;margin:18px 0 6px;flex-wrap:wrap}
-.api-m{font-weight:700;font-size:12px;padding:3px 8px;border-radius:6px;background:#E8F2EC;color:var(--green)}
-.api-m.post{background:#FFF3D6;color:#7A5200}
-.input.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px}
-.card-box h2 svg{width:20px;height:20px;vertical-align:-4px;color:var(--green);margin-right:4px}

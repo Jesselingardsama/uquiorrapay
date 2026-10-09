@@ -1,5 +1,5 @@
 // Única camada que fala com o Supabase. Todas as funções devolvem dados ou lançam Error.
-import { CONFIG } from "./config.js?v=202610091700";
+import { CONFIG } from "./config.js?v=202610092030";
 
 // Se a sessão expirou (comum no telemóvel depois de estar parado), renova e repete o pedido sozinho.
 // Antes era preciso repetir a acção duas vezes (a 1.ª falhava, a 2.ª já ia com a sessão renovada).
@@ -625,9 +625,9 @@ export const api = {
   async gatewayInfo() {
     try {
       const { data, error } = await sb.functions.invoke("gateways?action=status", { body: {} });
-      if (error) return { enabled: false, paypal: false };
-      return { enabled: Boolean(data?.enabled), paypal: Boolean(data?.paypal) };
-    } catch { return { enabled: false, paypal: false }; }
+      if (error) return { enabled: false, paypal: false, mpesa_payouts: false };
+      return { enabled: Boolean(data?.enabled), paypal: Boolean(data?.paypal), mpesa_payouts: Boolean(data?.mpesa_payouts), providers: data?.providers || [] };
+    } catch { return { enabled: false, paypal: false, mpesa_payouts: false }; }
   },
   // Inicia o pagamento automático no primeiro fornecedor disponível (Pagar.co.mz, e2Payments ou PaySuite) ou no PayPal
   // ---------- App Android: ficheiro APK público ----------
@@ -639,33 +639,6 @@ export const api = {
     await this.saveSetting("android_apk", value);
     return value;
   },
-  // ---------- API pública: chaves e webhooks do produtor ----------
-  async apiKeys() {
-    return ok(await sb.from("api_keys").select("id,name,prefix,created_at,last_used_at,revoked_at").order("created_at", { ascending: false }));
-  },
-  async apiKeyCreate(name) {
-    return ok(await sb.rpc("api_key_create", { _name: name }));
-  },
-  async apiKeyRevoke(id) {
-    return ok(await sb.rpc("api_key_revoke", { _id: id }));
-  },
-  async apiWebhooks() {
-    return ok(await sb.from("api_webhooks").select("*").order("created_at", { ascending: false }));
-  },
-  async apiWebhookAdd(url, events) {
-    const uid = (await this.session())?.user?.id;
-    return ok(await sb.from("api_webhooks").insert({ user_id: uid, url, events }).select().single());
-  },
-  async apiWebhookUpdate(id, fields) {
-    return ok(await sb.from("api_webhooks").update(fields).eq("id", id).select().single());
-  },
-  async apiWebhookDelete(id) {
-    return ok(await sb.from("api_webhooks").delete().eq("id", id));
-  },
-  async apiDeliveries() {
-    return ok(await sb.from("api_webhook_deliveries").select("*").order("created_at", { ascending: false }).limit(50));
-  },
-
   // ---------- Notificações push (vendas) ----------
   async savePushSub(sub, ua) {
     const j = sub.toJSON ? sub.toJSON() : sub;
@@ -708,6 +681,13 @@ export const api = {
   },
   async setWithdrawalStatus(id, status, note) {
     return ok(await sb.from("withdrawals").update({ status, admin_note: note || null }).eq("id", id).select().single());
+  },
+  // Paga (ou confirma) um levantamento directamente pela M-Pesa B2C — só admin com 2FA
+  async adminPayout(id, check = false) {
+    const { data, error } = await sb.functions.invoke(`gateways?action=${check ? "payout_check" : "payout"}`, { body: { withdrawal_id: id } });
+    if (error) { let m = error.message; try { m = (await error.context.json()).error || m; } catch {} throw new Error(m); }
+    if (data?.error) throw new Error(data.error);
+    return data;
   },
   async setGatewaySecret(key, value) {
     return ok(await sb.rpc("admin_set_gateway_secret", { _key: key, _value: value }));

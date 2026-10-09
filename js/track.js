@@ -1,7 +1,7 @@
 // Pixels de anúncios (Meta, TikTok, Google). Os IDs vêm das Definições (chave «tracking»),
 // por isso o administrador liga ou troca um pixel sem publicar o site de novo.
 // Cada produtor pode ainda ter o seu pixel do Meta no produto: recebe só os eventos desse produto.
-import { state, usdRate } from "./ui.js?v=202610091700";
+import { state, usdRate } from "./ui.js?v=202610092030";
 
 const ok = (v, re) => (typeof v === "string" && re.test(v.trim()) ? v.trim() : "");
 let cfg = null, lastPage = null;

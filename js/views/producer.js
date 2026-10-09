@@ -1,10 +1,10 @@
 // Área interna do produtor (estrutura inspirada na Hotmart):
 // Início (painel), Os meus produtos, Gestão de vendas, Criar produto (3 passos) e página do produto com lista de passos.
-import { api } from "../api.js?v=202610091700";
-import { state, tr, esc, mzn, siteUrl, usdRate, coverHTML, cleanBonuses, statusBadge, date, toast, modal, emptyState, ICON, isAdmin, isProducer, methodLabel, dashShell, copyText, TYPES, typeLabel, unitLabel, catLabel, catOptions, trackUpload, supportOk, photo, PHOTOS, CONFIG, isSponsored, donutSVG, areaSVG, gaugeSVG, dailySeries, deltaHTML, pctFee, gDays, dateTime } from "../ui.js?v=202610091700";
-import { affLink } from "./wallet.js?v=202610091700";
-import { pushCardHTML, wirePush } from "../push.js?v=202610091700";
-import { go, refreshUser, rerender } from "../app.js?v=202610091700";
+import { api } from "../api.js?v=202610092030";
+import { state, tr, esc, mzn, siteUrl, usdRate, coverHTML, cleanBonuses, statusBadge, date, toast, modal, emptyState, ICON, isAdmin, isProducer, methodLabel, dashShell, copyText, TYPES, typeLabel, unitLabel, catLabel, catOptions, trackUpload, supportOk, photo, PHOTOS, CONFIG, isSponsored, donutSVG, areaSVG, gaugeSVG, dailySeries, deltaHTML, pctFee, gDays } from "../ui.js?v=202610092030";
+import { affLink } from "./wallet.js?v=202610092030";
+import { pushCardHTML, wirePush } from "../push.js?v=202610092030";
+import { go, refreshUser, rerender } from "../app.js?v=202610092030";
 
 // Descrição do produto: máximo 500 caracteres (também imposto na base de dados)
 const DESC_MAX = 500;
@@ -1264,74 +1264,6 @@ export async function editor(main, { id }, query, alive) {
       await renderContent();
     } catch (err) { toast(err.message, "err"); busy(b, false); }
   });
-}
-
-// ---------- API e webhooks (integrações do produtor) ----------
-export async function apiPage(main, _p, _q, alive) {
-  const [keys, hooks, deliveries] = await Promise.all([api.apiKeys().catch(() => []), api.apiWebhooks().catch(() => []), api.apiDeliveries().catch(() => [])]);
-  if (!alive()) return;
-  const EVENTS = [["order.paid", tr("Pagamento confirmado", "Payment confirmed")], ["order.refunded", tr("Reembolso", "Refund")], ["order.cancelled", tr("Cancelamento", "Cancellation")]];
-  const base = `${siteUrl()}api/v1`;
-  const mask = (s) => `${String(s).slice(0, 6)}••••••••${String(s).slice(-4)}`;
-  main.innerHTML = dashShell("api", `
-    <h1 class="page-title">${tr("API e webhooks", "API & webhooks")}</h1>
-    <p class="muted" style="margin:-12px 0 18px">${tr("Liga a Uquiorrapay ao teu site, app ou automações: cria pedidos com confirmação M-Pesa/e-Mola no telemóvel, consulta as tuas vendas e recebe avisos assinados quando um pagamento é confirmado.", "Connect Uquiorrapay to your site, app or automations: create orders with M-Pesa/e-Mola phone confirmation, read your sales and get signed notifications when a payment is confirmed.")} <a href="#/api-docs">${tr("Ver a documentação", "Read the docs")} →</a></p>
-    <div class="card-box"><h2>${ICON.lock} ${tr("Chaves de API", "API keys")}</h2>
-      <p class="small muted">${tr("Endereço base", "Base URL")}: <code class="gw-url">${esc(base)}</code> · ${tr("Cabeçalho", "Header")} <code class="gw-url">Authorization: Bearer uq_live_…</code><br>${tr("A chave completa só é mostrada uma vez, ao criar. Guarda-a num lugar seguro. Máximo 5 chaves activas.", "The full key is shown only once, when created. Store it safely. Max 5 active keys.")}</p>
-      ${keys.length ? `<div class="table-wrap"><table class="table"><thead><tr><th>${tr("Nome", "Name")}</th><th>${tr("Chave", "Key")}</th><th>${tr("Criada", "Created")}</th><th>${tr("Último uso", "Last used")}</th><th>${tr("Estado", "Status")}</th><th></th></tr></thead>
-        <tbody>${keys.map((k) => `<tr><td><b>${esc(k.name)}</b></td><td><code class="gw-url">${esc(k.prefix)}…</code></td><td>${esc(date(k.created_at))}</td><td>${k.last_used_at ? esc(dateTime(k.last_used_at)) : "—"}</td><td>${k.revoked_at ? `<span class="badge st-rejected">${tr("revogada", "revoked")}</span>` : `<span class="badge st-approved">${tr("activa", "active")}</span>`}</td><td class="actions">${k.revoked_at ? "" : `<button class="btn btn-sm btn-danger-ghost" data-revoke="${esc(k.id)}" data-name="${esc(k.name)}">${tr("Revogar", "Revoke")}</button>`}</td></tr>`).join("")}</tbody></table></div>` : `<p class="small muted">${tr("Ainda não tens chaves.", "No keys yet.")}</p>`}
-      <form id="kf" class="form coupon-form"><div class="two"><input class="input" name="name" maxlength="60" placeholder="${tr("Nome da chave (ex.: Loja, Zapier)", "Key name (e.g. Store, Zapier)")}"><button class="btn btn-green">${ICON.plus} ${tr("Criar chave", "Create key")}</button></div></form>
-    </div>
-    <div class="card-box"><h2>${ICON.link} Webhooks</h2>
-      <p class="small muted">${tr("Recebes um POST em JSON no teu endereço HTTPS quando um pedido é pago, reembolsado ou cancelado. Cada envio leva o cabeçalho", "You get a JSON POST at your HTTPS address when an order is paid, refunded or cancelled. Each delivery carries the header")} <code class="gw-url">Uquiorrapay-Signature</code> ${tr("calculado com o segredo do webhook (vê como validar na documentação). Falhas são repetidas 3 vezes.", "computed with the webhook secret (see the docs to verify it). Failures are retried 3 times.")}</p>
-      ${hooks.length ? `<div class="coupon-list">${hooks.map((h) => `<div class="coupon ${h.active ? "" : "off"}" data-wh="${esc(h.id)}">
-          <div><b class="gw-url">${esc(h.url)}</b><small class="muted">${(h.events || []).join(", ")} · ${tr("segredo", "secret")} <code>${esc(mask(h.secret))}</code> <button type="button" class="link-btn" data-copy="${esc(h.secret)}">${tr("copiar", "copy")}</button></small></div>
-          <div class="cp-actions"><button class="btn btn-sm btn-ghost-dark" data-wact="toggle">${h.active ? tr("Pausar", "Pause") : tr("Activar", "Activate")}</button><button class="icon-btn danger" data-wact="del" title="${tr("Apagar", "Delete")}">${ICON.trash}</button></div></div>`).join("")}</div>` : `<p class="small muted">${tr("Ainda não tens webhooks.", "No webhooks yet.")}</p>`}
-      <form id="wf" class="form">
-        <label>${tr("Endereço HTTPS", "HTTPS address")}<input class="input" name="url" type="url" required pattern="https://.*" maxlength="500" placeholder="https://o-teu-site.com/webhooks/uquiorrapay"></label>
-        <div class="notif-grid">${EVENTS.map(([k, l]) => `<label class="switch"><input type="checkbox" name="ev" value="${k}" checked><span>${l} <code class="gw-url">${k}</code></span></label>`).join("")}</div>
-        <button class="btn btn-outline-green">${ICON.plus} ${tr("Adicionar webhook", "Add webhook")}</button>
-      </form>
-    </div>
-    <div class="card-box"><h2>${ICON.list} ${tr("Últimas entregas", "Recent deliveries")}</h2>
-      ${deliveries.length ? `<div class="table-wrap"><table class="table"><thead><tr><th>${tr("Quando", "When")}</th><th>${tr("Evento", "Event")}</th><th>${tr("Pedido", "Order")}</th><th>${tr("Resultado", "Result")}</th></tr></thead>
-        <tbody>${deliveries.map((d) => `<tr><td>${esc(dateTime(d.created_at))}</td><td><code class="gw-url">${esc(d.event)}</code></td><td class="small muted">${esc(String(d.order_id || "").slice(0, 8))}</td><td>${d.ok ? `<span class="badge st-approved">${tr("entregue", "delivered")} ${d.status_code || ""}</span>` : `<span class="badge st-rejected">${tr("falhou", "failed")}</span> <small class="muted">${esc(d.error || "")} · ${d.attempts} ${tr("tentativas", "attempts")}</small>`}</td></tr>`).join("")}</tbody></table></div>` : `<p class="small muted">${tr("Ainda não houve entregas.", "No deliveries yet.")}</p>`}
-    </div>`);
-  const showKey = (r) => {
-    const wrap = document.createElement("div"); wrap.className = "modal-wrap";
-    wrap.innerHTML = `<div class="modal" role="dialog" aria-modal="true"><h3>${tr("A tua nova chave de API", "Your new API key")}</h3>
-      <p class="muted small">${tr("Copia-a agora: por segurança não voltamos a mostrá-la.", "Copy it now: for security we won't show it again.")}</p>
-      <textarea class="input mono" rows="2" readonly>${esc(r.key)}</textarea>
-      <div class="modal-actions"><button class="btn btn-ghost-dark" data-x="close">${tr("Fechar", "Close")}</button><button class="btn btn-green" data-x="copy">${ICON.copy} ${tr("Copiar", "Copy")}</button></div></div>`;
-    document.body.appendChild(wrap);
-    wrap.addEventListener("click", (ev) => { const x = ev.target.closest("[data-x]"); if (x?.dataset.x === "copy") copyText(r.key); if (x?.dataset.x === "close") { wrap.remove(); rerender(); } });
-  };
-  document.getElementById("kf").addEventListener("submit", async (e) => {
-    e.preventDefault(); const btn = e.target.querySelector("button"); busy(btn, true);
-    try { showKey(await api.apiKeyCreate(e.target.name.value.trim())); } catch (err) { toast(err.message, "err"); busy(btn, false); }
-  });
-  document.getElementById("wf").addEventListener("submit", async (e) => {
-    e.preventDefault(); const btn = e.target.querySelector("button"); busy(btn, true);
-    const events = [...e.target.querySelectorAll("input[name=ev]:checked")].map((x) => x.value);
-    if (!events.length) { toast(tr("Escolhe pelo menos um evento.", "Pick at least one event."), "err"); busy(btn, false); return; }
-    try { await api.apiWebhookAdd(e.target.url.value.trim(), events); toast(tr("Webhook adicionado.", "Webhook added.")); rerender(); } catch (err) { toast(err.message, "err"); busy(btn, false); }
-  });
-  main.onclick = async (e) => {
-    const cp = e.target.closest("[data-copy]"); if (cp) { copyText(cp.dataset.copy); return; }
-    const rv = e.target.closest("[data-revoke]");
-    if (rv) {
-      if (!(await modal({ title: tr(`Revogar a chave «${rv.dataset.name}»?`, "Revoke this key?"), body: tr("As integrações que a usam deixam de funcionar imediatamente.", "Integrations using it stop working immediately."), confirm: tr("Revogar", "Revoke"), danger: true }))) return;
-      try { await api.apiKeyRevoke(rv.dataset.revoke); toast(tr("Chave revogada.", "Key revoked.")); rerender(); } catch (err) { toast(err.message, "err"); }
-      return;
-    }
-    const wa = e.target.closest("[data-wact]"); if (!wa) return;
-    const id = wa.closest("[data-wh]").dataset.wh, h = hooks.find((x) => x.id === id);
-    try {
-      if (wa.dataset.wact === "toggle") await api.apiWebhookUpdate(id, { active: !h.active });
-      if (wa.dataset.wact === "del") { if (!(await modal({ title: tr("Apagar webhook?", "Delete webhook?"), confirm: tr("Apagar", "Delete"), danger: true }))) return; await api.apiWebhookDelete(id); }
-      rerender();
-    } catch (err) { toast(err.message, "err"); }
-  };
 }
 
 export { methodLabel, affLink, ensureProducer };

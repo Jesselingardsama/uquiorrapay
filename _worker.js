@@ -53,15 +53,6 @@ export default {
       const dest = ok ? `/#/pagamento/${o}${url.searchParams.get("cancel") ? "?cancelado=1" : ""}` : "/";
       return new Response(null, { status: 302, headers: { Location: dest, "Cache-Control": "no-store" } });
     }
-    // API pública (uquiorrapay.com/api/v1/…): encaminha para a função «api» do Supabase. A chave vai no cabeçalho Authorization.
-    if (url.pathname === "/api/v1" || url.pathname.startsWith("/api/v1/")) {
-      const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, content-type, idempotency-key", "Access-Control-Allow-Methods": "GET, POST, OPTIONS" };
-      if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
-      const headers = new Headers({ "Content-Type": request.headers.get("Content-Type") || "application/json", apikey: SB_KEY });
-      for (const h of ["Authorization", "Idempotency-Key", "User-Agent"]) { const v = request.headers.get(h); if (v) headers.set(h, v); }
-      const r = await fetch(`${SB_URL}/functions/v1/api${url.pathname.slice(4)}${url.search}`, { method: request.method, headers, body: ["GET", "HEAD"].includes(request.method) ? undefined : await request.text() });
-      return new Response(await r.text(), { status: r.status, headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
-    }
     if (url.pathname === "/api/pagar-webhook") {
       if (request.method === "GET") return new Response(JSON.stringify({ ok: true, service: "pagar-webhook" }), { headers: { "Content-Type": "application/json" } });
       if (request.method !== "POST") return new Response("Method not allowed", { status: 405 });

@@ -1,11 +1,12 @@
 // Administração: resumo de tarefas, revisão de produtos, pagamentos, levantamentos, utilizadores, definições e segurança.
-import { api } from "../api.js?v=202610091700";
-import { state, tr, esc, mzn, siteUrl, statusBadge, date, toast, modal, emptyState, methodLabel, isAdmin, dashShell, supportOk, ICON, copyText, catLabel, dateTime, trackUpload, donutSVG, areaSVG, dailySeries, deltaHTML } from "../ui.js?v=202610091700";
-import { go, rerender, bumpAdminCounts } from "../app.js?v=202610091700";
-import { adminSecurityLog } from "./security.js?v=202610091700";
-import { pushCardHTML, wirePush } from "../push.js?v=202610091700";
-import { DOCS, KYC_TXT } from "./kyc.js?v=202610091700";
-import { OB } from "./onboarding.js?v=202610091700";
+import { api } from "../api.js?v=202610092030";
+import { state, tr, esc, mzn, siteUrl, statusBadge, date, toast, modal, emptyState, methodLabel, isAdmin, dashShell, supportOk, ICON, copyText, catLabel, dateTime, trackUpload, donutSVG, areaSVG, dailySeries, deltaHTML } from "../ui.js?v=202610092030";
+import { go, rerender, bumpAdminCounts } from "../app.js?v=202610092030";
+import { adminSecurityLog } from "./security.js?v=202610092030";
+import { pushCardHTML, wirePush } from "../push.js?v=202610092030";
+function busy(btn, on) { if (btn) { btn.disabled = on; btn.classList.toggle("busy", on); } }
+import { DOCS, KYC_TXT } from "./kyc.js?v=202610092030";
+import { OB } from "./onboarding.js?v=202610092030";
 
 const TABS = () => ({
   resumo: [tr("Resumo", "Overview"), tr("O que precisa da tua atenção hoje.", "What needs your attention today.")],
@@ -54,7 +55,9 @@ async function resumo(box, _q, alive) {
   if (!mfa.verified?.length) alerts.push([tr("Ativa a verificação em 2 passos na tua conta de administrador.", "Turn on 2-step verification for your admin account."), "#/seguranca", tr("Ativar", "Turn on")]);
   if (!(sets.payment_mpesa?.number)) alerts.push([tr("Falta o número M-Pesa para pagamentos manuais.", "M-Pesa number for manual payments is missing."), "#/admin/definicoes", tr("Preencher", "Fill in")]);
   if (!(sets.payment_emola?.number)) alerts.push([tr("Falta o número e-Mola para pagamentos manuais.", "e-Mola number for manual payments is missing."), "#/admin/definicoes", tr("Preencher", "Fill in")]);
-  { const g = sets.gateway || {}; if (!g.paysuite_enabled && !g.pagar_enabled && !g.e2_enabled) alerts.push([tr("Nenhum pagamento automático ligado (PaySuite, Pagar.co.mz ou e2Payments). Os clientes pagam pelo método manual.", "No automatic payment enabled (PaySuite, Pagar.co.mz or e2Payments). Customers pay manually."), "#/admin/definicoes", tr("Abrir", "Open")]); }
+  { const g = sets.gateway || {}; if (!g.paysuite_enabled && !g.pagar_enabled && !g.e2_enabled && !g.mpesa_enabled) alerts.push([tr("Nenhum pagamento automático ligado (M-Pesa directo, e2Payments, Pagar.co.mz ou PaySuite). Os clientes pagam pelo método manual.", "No automatic payment enabled (M-Pesa direct, e2Payments, Pagar.co.mz or PaySuite). Customers pay manually."), "#/admin/definicoes", tr("Abrir", "Open")]); }
+  { const g = sets.gateway || {}; if (g.mpesa_enabled && gws && !(gws.mpesa_api_key_set && gws.mpesa_public_key_set && gws.mpesa_service_code_set)) alerts.push([tr("A M-Pesa directa está ligada mas faltam credenciais (chave da API, chave pública ou código de serviço).", "M-Pesa direct is on but credentials are missing (API key, public key or service code)."), "#/admin/definicoes", tr("Corrigir", "Fix")]); }
+  { const g = sets.gateway || {}; if (g.e2_enabled && gws && !(gws.e2_client_id_set && gws.e2_client_secret_set && (gws.e2_mpesa_wallet_set || gws.e2_emola_wallet_set))) alerts.push([tr("A e2Payments está ligada mas faltam o Client ID, o Client Secret ou as carteiras.", "e2Payments is on but the Client ID, Client Secret or wallets are missing."), "#/admin/definicoes", tr("Corrigir", "Fix")]); }
   if (!sets.support_whatsapp) alerts.push([tr("Falta o WhatsApp de apoio ao cliente.", "Customer support WhatsApp is missing."), "#/admin/definicoes", tr("Preencher", "Fill in")]);
   { const g = sets.gateway || {}; if (g.pagar_enabled && gws && !(gws.pagar_api_key_set && gws.pagar_signing_secret_set)) alerts.push([tr("A Pagar.co.mz está ligada mas falta a chave da API ou o segredo de assinatura — os pagamentos automáticos falham.", "Pagar.co.mz is on but the API key or signing secret is missing — automatic payments fail."), "#/admin/definicoes", tr("Corrigir", "Fix")]); }
   // Últimos 30 dias vs 30 anteriores (pagamentos confirmados)
@@ -207,8 +210,9 @@ async function levantamentos(box, query, alive) {
   const st = query.estado ?? "pending";
   const rows = await api.adminWithdrawals(st || null);
   const uids = [...new Set(rows.map((w) => w.user_id))];
-  const [kmap, holds] = await Promise.all([api.adminKycMap(uids).catch(() => []), api.adminHolds().catch(() => [])]);
+  const [kmap, holds, gwi] = await Promise.all([api.adminKycMap(uids).catch(() => []), api.adminHolds().catch(() => []), api.gatewayInfo().catch(() => ({}))]);
   if (!alive()) return;
+  const autoPay = Boolean(gwi?.mpesa_payouts);
   const kycOf = (id) => kmap.find((k) => k.user_id === id);
   const holdOf = (id) => holds.find((h) => h.user_id === id && h.withdraw_hold);
   const norm = (x) => String(x || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z ]/g, "").split(/\s+/).filter((w) => w.length > 2);
@@ -225,12 +229,23 @@ async function levantamentos(box, query, alive) {
         <td>${esc(methodLabel(w.method))}<div class="small"><b>${esc(w.account_number)}</b> · ${esc(w.account_name)}</div>
           ${kycOf(w.user_id) && !sameName(kycOf(w.user_id).full_name, w.account_name) ? `<div class="small err-text">⚠ ${tr("Titular diferente do nome verificado", "Holder differs from verified name")}: ${esc(kycOf(w.user_id).full_name)}</div>` : ""}</td>
         <td>${statusBadge(w.status, "wd")}${w.admin_note ? `<div class="small muted">${esc(w.admin_note)}</div>` : ""}</td>
-        <td class="actions">${w.status === "pending" ? `<button class="btn btn-sm btn-green" data-act="paid">${tr("Marcar como pago", "Mark as paid")}</button><button class="btn btn-sm btn-ghost-dark" data-act="rejected">${tr("Recusar", "Reject")}</button>` : ""}</td>
+        <td class="actions">${w.status === "pending" ? `${w.payout_ref ? `<button class="btn btn-sm btn-outline-green" data-act="check">${ICON.refresh || "⟳"} ${tr("Verificar M-Pesa", "Check M-Pesa")}</button>` : autoPay && w.method === "mpesa" ? `<button class="btn btn-sm btn-green" data-act="payout">⚡ ${tr("Pagar por M-Pesa", "Pay via M-Pesa")}</button>` : ""}<button class="btn btn-sm ${autoPay && w.method === "mpesa" ? "btn-ghost-dark" : "btn-green"}" data-act="paid">${tr("Marcar como pago", "Mark as paid")}</button><button class="btn btn-sm btn-ghost-dark" data-act="rejected">${tr("Recusar", "Reject")}</button>` : w.payout_txn ? `<span class="small muted">⚡ ${esc(w.payout_txn)}</span>` : ""}</td>
       </tr>`).join("")}</tbody></table></div>` : emptyState(tr("Sem pedidos de levantamento.", "No withdrawal requests."))}`;
   box.onclick = async (e) => {
     const b = e.target.closest("[data-act]"); if (!b) return;
     const id = b.closest("[data-id]").dataset.id;
     let note = null;
+    if (b.dataset.act === "payout" || b.dataset.act === "check") {
+      const row = rows.find((w) => w.id === id) || {};
+      if (b.dataset.act === "payout" && !(await modal({ title: tr("Pagar agora pela M-Pesa?", "Pay now via M-Pesa?"), body: tr(`Vai sair ${mzn(row.amount_mzn)} da conta M-Pesa Business para o número ${row.account_number} (${row.account_name}). Esta acção não pode ser anulada.`, `${mzn(row.amount_mzn)} will leave the M-Pesa Business account to ${row.account_number} (${row.account_name}). This cannot be undone.`), confirm: tr("Pagar", "Pay") }))) return;
+      busy(b, true);
+      try {
+        const r = await api.adminPayout(id, b.dataset.act === "check");
+        toast(r.status === "paid" ? tr(`Pago pela M-Pesa (${r.txn}).`, `Paid via M-Pesa (${r.txn}).`) : r.status === "failed" ? r.error : tr("A M-Pesa ainda não confirmou. Volta a verificar daqui a um minuto.", "M-Pesa hasn't confirmed yet. Check again in a minute."), r.status === "failed" ? "err" : undefined);
+        bumpAdminCounts(); rerender();
+      } catch (err) { toast(err.message, "err"); busy(b, false); rerender(); }
+      return;
+    }
     if (b.dataset.act === "rejected") {
       note = await modal({ title: tr("Recusar levantamento", "Reject withdrawal"), body: tr("O valor volta ao saldo do utilizador.", "The amount returns to the user's balance."), input: tr("Motivo…", "Reason…"), confirm: tr("Recusar", "Reject"), danger: true });
       if (!note) return;
@@ -476,19 +491,27 @@ async function definicoes(box, _q, alive) {
       <button type="button" class="btn btn-sm btn-green" id="apkUp">⬆ ${tr("Enviar APK", "Upload APK")}</button></div>
     <div class="panel gw-set"><h3>${tr("Pagamento automático", "Automatic payment")}</h3>
       <p class="small muted">${tr("Podes ligar vários fornecedores. O site usa o primeiro da lista que estiver disponível; se falhar, passa automaticamente ao seguinte. Se nenhum funcionar, o cliente paga pelo método manual. As chaves ficam encriptadas no servidor.", "You can enable several providers. The site uses the first available one; if it fails it moves to the next automatically. If none work, the customer pays manually. Keys are stored encrypted on the server.")}</p>
-      <label>${tr("Ordem de preferência", "Preference order")}<select class="input" name="gw_order">${[
-        ["pagar,e2payments,paysuite", "Pagar.co.mz → e2Payments → PaySuite"],
-        ["e2payments,pagar,paysuite", "e2Payments → Pagar.co.mz → PaySuite"],
-        ["paysuite,pagar,e2payments", "PaySuite → Pagar.co.mz → e2Payments"],
-        ["paysuite,e2payments,pagar", "PaySuite → e2Payments → Pagar.co.mz"],
-        ["pagar,paysuite,e2payments", "Pagar.co.mz → PaySuite → e2Payments"],
-        ["e2payments,paysuite,pagar", "e2Payments → PaySuite → Pagar.co.mz"],
-      ].map(([v, l]) => `<option value="${v}" ${(gw.order || ["pagar", "e2payments", "paysuite"]).join(",") === v ? "selected" : ""}>${l}</option>`).join("")}</select></label>
+      <label>${tr("Ordem de preferência", "Preference order")}<select class="input" name="gw_order">${(() => {
+        const N = { mpesa: tr("M-Pesa directo", "M-Pesa direct"), e2payments: "e2Payments", pagar: "Pagar.co.mz", paysuite: "PaySuite" };
+        const opts = [["mpesa", "e2payments", "pagar", "paysuite"], ["e2payments", "mpesa", "pagar", "paysuite"], ["mpesa", "pagar", "e2payments", "paysuite"], ["e2payments", "pagar", "mpesa", "paysuite"], ["pagar", "e2payments", "mpesa", "paysuite"], ["pagar", "mpesa", "e2payments", "paysuite"], ["paysuite", "mpesa", "e2payments", "pagar"]];
+        const cur = Array.isArray(gw.order) && gw.order.length ? gw.order.join(",") : "mpesa,e2payments,pagar,paysuite";
+        if (!opts.some((o) => o.join(",") === cur)) opts.unshift(cur.split(","));
+        return opts.map((o) => `<option value="${o.join(",")}" ${o.join(",") === cur ? "selected" : ""}>${o.map((k) => N[k] || k).join(" → ")}</option>`).join("");
+      })()}</select></label>
+      <p class="small muted">${tr("M-Pesa directo só cobra números 84/85; os pedidos e-Mola passam automaticamente ao fornecedor seguinte da lista.", "M-Pesa direct only charges 84/85 numbers; e-Mola orders fall through to the next provider in the list.")}</p>
       ${(() => {
         const st = (k) => gws?.[k + "_set"] ? `<span class="badge st-approved">${tr("guardada", "saved")}</span>` : `<span class="badge">${tr("vazia", "empty")}</span>`;
         const key = (name, label, ph = "") => `<label>${label} ${st(name)}<input class="input" name="${name}" type="password" autocomplete="off" placeholder="${gws?.[name + "_set"] ? "••••••••" : ph}"></label>`;
         const hook = `${siteUrl()}api/pagar-webhook`;
         return `
+        <details class="gw-box" ${gw.mpesa_enabled ? "open" : ""}><summary><b>${tr("M-Pesa directo", "M-Pesa direct")}</b> <small>Vodacom Open API · M-Pesa</small>${gw.mpesa_enabled ? `<span class="badge st-approved">${gw.mpesa_live ? tr("ligado (real)", "on (live)") : tr("ligado (teste)", "on (sandbox)")}</span>` : ""}</summary>
+          <label class="switch"><input type="checkbox" name="mpesa_enabled" ${gw.mpesa_enabled ? "checked" : ""}><span>${tr("Ligar M-Pesa directo (cobrança no checkout)", "Enable M-Pesa direct (checkout collection)")}</span></label>
+          <label class="switch"><input type="checkbox" name="mpesa_live" ${gw.mpesa_live ? "checked" : ""}><span>${tr("Modo real (LIVE). Desligado = sandbox da Vodacom", "Live mode. Off = Vodacom sandbox")}</span></label>
+          <label class="switch"><input type="checkbox" name="mpesa_payouts" ${gw.mpesa_payouts ? "checked" : ""}><span>${tr("Pagar levantamentos automaticamente (B2C) com o botão «Pagar por M-Pesa» em Levantamentos", "Pay withdrawals automatically (B2C) with the “Pay via M-Pesa” button in Withdrawals")}</span></label>
+          <div class="two">${key("mpesa_api_key", tr("Chave da API (API Key)", "API key"))}${key("mpesa_service_code", tr("Código de serviço (Service Provider Code)", "Service provider code"), "171717")}</div>
+          ${key("mpesa_public_key", tr("Chave pública (Public Key, texto longo em base64)", "Public key (long base64 text)"))}
+          <p class="small muted">${tr("Onde encontrar: developer.mpesa.vm.co.mz → entra com a conta M-Pesa Business → a tua aplicação → API Key e Public Key. O código de serviço é o <i>short code</i> da tua conta Business. Sem taxas de intermediário: pagas só a tarifa da Vodacom. Para o B2C, a conta Business precisa do produto «Pagamentos em massa» activo.", "Where to find: developer.mpesa.vm.co.mz → sign in with the M-Pesa Business account → your app → API Key and Public Key. The service code is your Business short code. No middleman fees: you pay Vodacom's tariff only. For B2C, the Business account needs the “Mass payments” product enabled.")}</p>
+        </details>
         <details class="gw-box" ${gw.pagar_enabled ? "open" : ""}><summary><b>Pagar.co.mz</b> <small>M-Pesa · e-Mola</small>${gw.pagar_enabled ? `<span class="badge st-approved">${tr("ligado", "on")}</span>` : ""}</summary>
           <label class="switch"><input type="checkbox" name="pagar_enabled" ${gw.pagar_enabled ? "checked" : ""}><span>${tr("Ligar Pagar.co.mz", "Enable Pagar.co.mz")}</span></label>
           <div class="two">${key("pagar_api_key", tr("Chave da API", "API key"), "sk_live_…")}${key("pagar_signing_secret", tr("Segredo de assinatura", "Signing secret"))}</div>
@@ -617,7 +640,7 @@ async function definicoes(box, _q, alive) {
         api.saveSetting("payout_hold_days", Number(f.payout_hold_days || 0)),
         api.saveSetting("guarantee_days", Number(f.guarantee_days || 0)),
         api.saveSetting("min_withdrawal", Number(f.min_withdrawal || 0)),
-        api.saveSetting("gateway", { ...gw, paysuite_enabled: Boolean(f.paysuite_enabled), pagar_enabled: Boolean(f.pagar_enabled), e2_enabled: Boolean(f.e2_enabled), paypal_enabled: Boolean(f.paypal_enabled), paypal_live: Boolean(f.paypal_live), order: String(f.gw_order || "pagar,e2payments,paysuite").split(",") }),
+        api.saveSetting("gateway", { ...gw, mpesa_enabled: Boolean(f.mpesa_enabled), mpesa_live: Boolean(f.mpesa_live), mpesa_payouts: Boolean(f.mpesa_payouts), paysuite_enabled: Boolean(f.paysuite_enabled), pagar_enabled: Boolean(f.pagar_enabled), e2_enabled: Boolean(f.e2_enabled), paypal_enabled: Boolean(f.paypal_enabled), paypal_live: Boolean(f.paypal_live), order: String(f.gw_order || "mpesa,e2payments,pagar,paysuite").split(",") }),
         api.saveSetting("turnstile_site_key", String(f.turnstile_site_key || "").trim()),
         api.saveSetting("tracking", { meta_pixel: String(f.px_meta || "").replace(/\D/g, "").slice(0, 20), tiktok_pixel: String(f.px_tiktok || "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 30), ga4: /^G-[A-Z0-9]{4,20}$/i.test(String(f.px_ga || "").trim()) ? String(f.px_ga).trim().toUpperCase() : "" }),
         api.saveSetting("google_login", Boolean(f.google_login)),
@@ -632,7 +655,7 @@ async function definicoes(box, _q, alive) {
         await api.setGatewaySecret("anthropic_api_key", f.anthropic_api_key.trim()); e.target.anthropic_api_key.value = "";
       }
       if (f.resend_api_key && f.resend_api_key.trim()) { await api.setGatewaySecret("resend_api_key", f.resend_api_key.trim()); e.target.resend_api_key.value = ""; }
-      const GW_KEYS = ["paysuite_token", "pagar_api_key", "pagar_signing_secret", "pagar_webhook_secret", "e2_client_id", "e2_client_secret", "e2_mpesa_wallet", "e2_emola_wallet", "paypal_client_id", "paypal_secret"];
+      const GW_KEYS = ["paysuite_token", "pagar_api_key", "pagar_signing_secret", "pagar_webhook_secret", "e2_client_id", "e2_client_secret", "e2_mpesa_wallet", "e2_emola_wallet", "mpesa_api_key", "mpesa_public_key", "mpesa_service_code", "paypal_client_id", "paypal_secret"];
       let gwSaved = false;
       for (const k of GW_KEYS) {
         let v = String(f[k] || "").trim();

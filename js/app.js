@@ -1,16 +1,16 @@
 // Arranque, navegação (router), barra de topo, menu e rodapé.
-import { api } from "./api.js?v=202610091700";
-import { state, tr, esc, isProducer, isAdmin, setLang, setCurrency, initLocale, brandHTML, ICON, toast, loading, errorBox, appMenuHTML, activeKey, CONFIG, supportWa } from "./ui.js?v=202610091700";
-import * as pub from "./views/public.js?v=202610091700";
-import { initTracking, pageView } from "./track.js?v=202610091700";
-import * as acc from "./views/account.js?v=202610091700";
-import * as prod from "./views/producer.js?v=202610091700";
-import * as adm from "./views/admin.js?v=202610091700";
-import * as wal from "./views/wallet.js?v=202610091700";
-import * as sec from "./views/security.js?v=202610091700";
-import { mountAssistant } from "./assistant.js?v=202610091700";
-import * as kyc from "./views/kyc.js?v=202610091700";
-import * as onb from "./views/onboarding.js?v=202610091700";
+import { api } from "./api.js?v=202610092030";
+import { state, tr, esc, isProducer, isAdmin, setLang, setCurrency, initLocale, brandHTML, ICON, toast, loading, errorBox, appMenuHTML, activeKey, CONFIG, supportWa } from "./ui.js?v=202610092030";
+import * as pub from "./views/public.js?v=202610092030";
+import { initTracking, pageView } from "./track.js?v=202610092030";
+import * as acc from "./views/account.js?v=202610092030";
+import * as prod from "./views/producer.js?v=202610092030";
+import * as adm from "./views/admin.js?v=202610092030";
+import * as wal from "./views/wallet.js?v=202610092030";
+import * as sec from "./views/security.js?v=202610092030";
+import { mountAssistant } from "./assistant.js?v=202610092030";
+import * as kyc from "./views/kyc.js?v=202610092030";
+import * as onb from "./views/onboarding.js?v=202610092030";
 
 // Regresso do link do email (confirmação de conta): o Supabase lê os dados do endereço
 let fromEmailLink = /type=(signup|email|magiclink)/.test(location.hash);
@@ -49,8 +49,6 @@ const routes = [
   ["/produtor", prod.dashboard, "producer"],
   ["/produtor/curso/novo", prod.createWizard, "auth"],
   ["/produtor/vendas", prod.salesPage, "producer"],
-  ["/produtor/api", prod.apiPage, "producer"],
-  ["/api-docs", pub.apiDocs],
   ["/produtor/curso/:id", prod.editor, "producer"],
   ["/admin", adm.admin, "admin"],
   ["/admin/:tab", adm.admin, "admin"],
@@ -245,7 +243,7 @@ function closeDrawer() { document.body.classList.remove("drawer-open"); }
 function renderFooter() {
   document.getElementById("footer").innerHTML = `<div class="container foot-grid">
     <div>${brandHTML()}<p class="muted-light">${tr("Cria, publica e vende os teus produtos digitais.", "Create, publish and sell your digital products.")}</p></div>
-    <div><h4>${tr("Plataforma", "Platform")}</h4><a href="#/cursos">${tr("Ver produtos", "Browse products")}</a><a href="#/como-funciona">${tr("Como funciona", "How it works")}</a><a href="#/para-produtores">${tr("Para criadores", "For creators")}</a><a href="#/afiliados">${tr("Afiliados", "Affiliates")}</a><a href="#/app">📲 ${tr("Baixar a app", "Get the app")}</a><a href="#/saas">SaaS <span class="soon-tag">${tr("em breve", "coming soon")}</span></a><a href="#/api-docs">${tr("API para programadores", "Developer API")}</a></div>
+    <div><h4>${tr("Plataforma", "Platform")}</h4><a href="#/cursos">${tr("Ver produtos", "Browse products")}</a><a href="#/como-funciona">${tr("Como funciona", "How it works")}</a><a href="#/para-produtores">${tr("Para criadores", "For creators")}</a><a href="#/afiliados">${tr("Afiliados", "Affiliates")}</a><a href="#/app">📲 ${tr("Baixar a app", "Get the app")}</a><a href="#/saas">SaaS <span class="soon-tag">${tr("em breve", "coming soon")}</span></a></div>
     <div><h4>${tr("Empresa", "Company")}</h4><a href="#/sobre">${tr("Sobre", "About")}</a><a href="#/contacto">${tr("Contacto", "Contact")}</a>${supportWa() ? `<a href="https://wa.me/${supportWa()}" target="_blank" rel="noopener">${tr("WhatsApp do suporte", "Support WhatsApp")}</a>` : ""}${waGroup() ? `<a href="${esc(waGroup())}" target="_blank" rel="noopener">${tr("Grupo no WhatsApp", "WhatsApp group")}</a>` : ""}${typeof state.settings.support_email === "string" && state.settings.support_email ? `<a href="mailto:${esc(state.settings.support_email)}">${esc(state.settings.support_email)}</a>` : ""}</div>
     <div><h4>${tr("Legal", "Legal")}</h4><a href="#/termos">${tr("Termos de Uso", "Terms of Use")}</a><a href="#/privacidade">${tr("Privacidade", "Privacy")}</a><a href="#/diretrizes">${tr("Diretrizes de conteúdo", "Content guidelines")}</a></div>
   </div>

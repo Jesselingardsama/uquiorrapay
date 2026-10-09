@@ -12,7 +12,7 @@ Marketplace de cursos, ebooks e templates. Site estático (PWA) publicado no **C
 | `js/views/` | Ecrãs: público, carteira, conta, produtor, administração, KYC, segurança, onboarding |
 | `js/ui.js`, `js/assistant.js`, `js/push.js`, `js/track.js`, `js/captcha.js` | UI partilhada, assistente, notificações push, analytics, Turnstile |
 | `css/styles.css` | Estilos |
-| `_worker.js` | Worker do Cloudflare Pages: webhook da Pagar.co.mz, `/.well-known/*`, `/api/geo`, regresso do PayPal e proxy da API pública (`/api/v1/*`) |
+| `_worker.js` | Worker do Cloudflare Pages: webhook da Pagar.co.mz, `/.well-known/*`, `/api/geo`, regresso do PayPal |
 | `_routes.json` | Quais caminhos passam pelo worker (`/api/*` e `/.well-known/*`) |
 | `_headers` | Cabeçalhos de segurança (CSP, HSTS, etc.) e cache |
 | `sw.js`, `manifest.webmanifest`, `offline.html`, `img/app/` | PWA (service worker, manifesto, ícones) |
@@ -23,10 +23,9 @@ A pasta `supabase/` guarda cópias do que está publicado no projecto Supabase, 
 
 | Caminho | O que é |
 | --- | --- |
-| `supabase/functions/gateways/index.ts` | Edge Function dos pagamentos automáticos (Pagar.co.mz, e2Payments, PaySuite, PayPal) |
+| `supabase/functions/gateways/index.ts` | Edge Function dos pagamentos automáticos (M-Pesa directo da Vodacom, e2Payments, Pagar.co.mz, PaySuite, PayPal) e pagamento de levantamentos por M-Pesa B2C |
 | `supabase/functions/admin-users/index.ts` | Ferramentas de administração (nova palavra-passe: email ao utilizador; link só para contas de telefone) |
 | `supabase/functions/kyc-cleanup/index.ts` | Retenção KYC: apaga as imagens 30 dias depois da decisão (cron diário) |
-| `supabase/functions/api/index.ts` | API pública para programadores (chaves `uq_live_…`, produtos, pedidos com push M-Pesa/e-Mola, webhooks assinados) |
 | `supabase/migrations/*.sql` | Migrações aplicadas à base de dados (tabelas, triggers e funções RPC) |
 
 Regras de negócio relevantes:
@@ -34,7 +33,8 @@ Regras de negócio relevantes:
 - **Saque na hora:** o valor de cada venda fica disponível de imediato na carteira do produtor. Só fica retido (pelos «dias de garantia» das Definições) nos produtos em que o produtor activou a **garantia ao comprador**.
 - **Comissão da plataforma:** definida em Administração → Definições (`commission_pct`, actualmente 9,5%).
 - **Segurança:** administração só com 2FA activo; funções e tabelas sensíveis sem acesso anónimo; admin atribuído manualmente em `user_roles`.
-- **API pública:** cada produtor cria chaves em Painel → Integrações → «API e webhooks». Base `https://uquiorrapay.com/api/v1`, cabeçalho `Authorization: Bearer uq_live_…`, 120 pedidos/minuto. Os webhooks levam o cabeçalho `Uquiorrapay-Signature: t=…,v1=…` (HMAC-SHA256 do `t.corpo` com o segredo do webhook). Documentação pública em `#/api-docs`.
+- **Pagamentos automáticos:** ordem de preferência em Administração → Definições (por defeito M-Pesa directo → e2Payments → Pagar.co.mz → PaySuite). O M-Pesa directo usa a Open API da Vodacom (developer.mpesa.vm.co.mz) sem intermediário; só cobra números 84/85 e os pedidos e-Mola passam ao fornecedor seguinte.
+- **Levantamentos:** pedidos pelo produtor (2FA + identidade verificada), pagos pela administração em Levantamentos. Com o M-Pesa directo e a opção B2C ligada, o botão «Pagar por M-Pesa» envia o valor na hora e marca o pedido como pago com o código da transacção.
 - **Order bump, upsell e downsell:** configurados pelo produtor em cada produto (secção «Order bump, upsell e downsell»). O order bump é pago junto com o produto principal; o upsell/downsell aparecem depois do pagamento confirmado e na área de membros.
 
 ## Publicar no Cloudflare Pages

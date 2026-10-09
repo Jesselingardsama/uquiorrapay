@@ -2,6 +2,7 @@
 //   Pagar.co.mz  (M-Pesa / e-Mola, pedido de confirmação no telemóvel + webhook assinado)
 //   e2Payments   (M-Pesa / e-Mola C2B — o pedido fica à espera do PIN do cliente)
 //   PaySuite     (página de pagamento; usa a função «paysuite» já existente)
+//   M-Pesa directo (Vodacom Open API: C2B no checkout + B2C para pagar levantamentos; RSA/PKCS1 do segredo)
 //   PayPal       (internacional: conta PayPal ou cartão Visa/Mastercard pela página do PayPal; cobra em USD)
 // Ações:
 //   POST ?action=status                 -> fornecedores disponíveis (público)
@@ -10,8 +11,11 @@
 //   POST ?action=webhook&p=pagar        (Pagar.co.mz, assinatura HMAC)
 //   POST ?action=plan_start {plan_payment_id}  (dono) -> mensalidade do plano Pro/Elite pela Pagar (pedido no telemóvel)
 //   POST ?action=plan_poll  {plan_payment_id}  (dono) -> {status: paid|pending|failed, error}
+//   POST ?action=payout {withdrawal_id}        (admin com 2FA) -> paga o levantamento por M-Pesa B2C
+//   POST ?action=payout_check {withdrawal_id}  (admin com 2FA) -> confirma na M-Pesa um B2C que ficou pendente
 // Segurança: o estado pago só é gravado depois de confirmado na API do fornecedor (nunca pelo corpo do webhook).
 import { createClient } from "npm:@supabase/supabase-js@2";
+import forge from "npm:node-forge@1.3.1";
 
 const SB_URL = Deno.env.get("SUPABASE_URL")!;
 const admin = createClient(SB_URL, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
@@ -28,7 +32,8 @@ class UserError extends Error {}
 
 const PAGAR_API = "https://api.pagar.co.mz/api/v1";
 const E2_API = "https://e2payments.explicador.co.mz";
-type Provider = "pagar" | "e2payments" | "paysuite";
+type Provider = "mpesa" | "pagar" | "e2payments" | "paysuite";
+const ALL_PROVIDERS: Provider[] = ["mpesa", "e2payments", "pagar", "paysuite"];
 // Erro guardado na tentativa quando o fornecedor recusa as credenciais (a administração vê-o e não conta para o limite de tentativas)
 const BAD_KEY = "Chave da API do fornecedor inválida — verificar em Administração → Definições";
 
@@ -70,15 +75,146 @@ const PHONE_MSG = (method: string) => method === "emola"
 // ---------- Disponibilidade ----------
 async function available(): Promise<Provider[]> {
   const g = await gwSettings();
-  const order: Provider[] = Array.isArray(g.order) && g.order.length ? g.order : ["pagar", "e2payments", "paysuite"];
+  const pref: Provider[] = Array.isArray(g.order) && g.order.length ? g.order : ALL_PROVIDERS;
+  const order = [...pref, ...ALL_PROVIDERS.filter((p) => !pref.includes(p))]; // fornecedores novos entram no fim
   const out: Provider[] = [];
   for (const p of order) {
+    if (p === "mpesa" && g.mpesa_enabled && (await mpesaConfigured())) out.push(p);
     if (p === "pagar" && g.pagar_enabled && (await secret("pagar_api_key")) && (await secret("pagar_signing_secret"))) out.push(p);
     if (p === "e2payments" && g.e2_enabled && (await secret("e2_client_id")) && (await secret("e2_client_secret")) &&
         ((await secret("e2_mpesa_wallet")) || (await secret("e2_emola_wallet")))) out.push(p);
     if (p === "paysuite" && g.paysuite_enabled && (await secret("paysuite_token"))) out.push(p);
   }
   return out;
+}
+
+// ---------- M-Pesa directo (Vodacom Open API) ----------
+// Portas da API da Vodacom Moçambique: C2B 18352 · B2C 18345 · consulta de estado 18353
+async function mpesaConfigured() {
+  return Boolean((await secret("mpesa_api_key")) && (await secret("mpesa_public_key")) && (await secret("mpesa_service_code")));
+}
+async function mpesaHost() { return (await gwSettings()).mpesa_live ? "api.vm.co.mz" : "api.sandbox.vm.co.mz"; }
+// Token = Base64(RSA/ECB/PKCS1 da chave da API com a chave pública da Vodacom)
+async function mpesaToken() {
+  const key = await secret("mpesa_api_key");
+  const pub = (await secret("mpesa_public_key")).replace(/-----[A-Z ]+-----|\s/g, "");
+  const pk = forge.pki.publicKeyFromPem(`-----BEGIN PUBLIC KEY-----\n${pub}\n-----END PUBLIC KEY-----`);
+  return forge.util.encode64(pk.encrypt(key, "RSAES-PKCS1-V1_5"));
+}
+type MpesaRes = { status: number; code: string; desc: string; txn: string; conv: string; raw: any };
+async function mpesaCall(port: number, path: string, body?: unknown, timeoutMs = 120_000): Promise<MpesaRes> {
+  const r = await fetch(`https://${await mpesaHost()}:${port}${path}`, {
+    method: body ? "POST" : "GET",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${await mpesaToken()}`, Origin: "*" },
+    body: body ? JSON.stringify(body) : undefined,
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  const d = await r.json().catch(() => ({}));
+  if (r.status === 401 || r.status === 403) console.error("mpesa auth", r.status, JSON.stringify(d).slice(0, 200));
+  return { status: r.status, code: String(d?.output_ResponseCode || (r.status === 401 ? "INS-2001" : "")), desc: String(d?.output_ResponseDesc || ""), txn: String(d?.output_TransactionID || ""), conv: String(d?.output_ConversationID || ""), raw: d };
+}
+// Referências da M-Pesa: só letras e dígitos, no máximo 20 caracteres
+const ref20 = (s: string) => String(s).replace(/[^A-Za-z0-9]/g, "").slice(0, 20);
+const MPESA_BAD = ["INS-2001", "INS-24", "INS-25", "INS-26", "INS-13"];
+function mpesaFriendly(code: string, desc: string) {
+  if (MPESA_BAD.includes(code)) return BAD_KEY;
+  return ({
+    "INS-6": "Pagamento não confirmado (PIN cancelado ou saldo insuficiente)",
+    "INS-9": "Tempo esgotado: o cliente não confirmou no telemóvel",
+    "INS-10": "Referência duplicada na M-Pesa",
+    "INS-16": "M-Pesa temporariamente sobrecarregada. Tenta de novo.",
+    "INS-2006": "Saldo M-Pesa insuficiente",
+    "INS-2051": "Número M-Pesa inválido",
+    "INS-996": "A conta M-Pesa do cliente não está activa",
+    "INS-995": "Problema com a conta M-Pesa do cliente",
+    "INS-993": "Problema com a conta M-Pesa do cliente",
+  } as Record<string, string>)[code] || `M-Pesa recusou o pagamento${desc ? ` (${desc.slice(0, 60)})` : ""}`;
+}
+// C2B em segundo plano: a chamada só responde depois de o cliente pôr o PIN (ou expirar)
+async function mpesaRun(order: any, attemptId: string, phone: string, thirdRef: string) {
+  try {
+    const res = await mpesaCall(18352, "/ipg/v1x/c2bPayment/singleStage/", {
+      input_TransactionReference: ref20(order.reference), input_CustomerMSISDN: "258" + phone,
+      input_Amount: String(Math.round(Number(order.amount_mzn))), input_ThirdPartyReference: thirdRef,
+      input_ServiceProviderCode: await secret("mpesa_service_code"),
+    });
+    if (res.code === "INS-0") {
+      const { error } = await admin.rpc("gateway_mark_paid2", { _order: order.id, _gateway: "mpesa", _payment_id: res.txn || thirdRef, _amount: Number(order.amount_mzn) });
+      if (error) throw new Error(error.message);
+      await admin.from("payment_attempts").update({ external_id: res.txn || thirdRef, updated_at: new Date().toISOString() }).eq("id", attemptId);
+      await admin.from("orders").update({ gateway_payment_id: res.txn || thirdRef }).eq("id", order.id);
+    } else {
+      console.error("mpesa c2b", res.status, res.code, res.desc);
+      await admin.from("payment_attempts").update({ status: "failed", error: mpesaFriendly(res.code, res.desc), updated_at: new Date().toISOString() }).eq("id", attemptId).eq("status", "pending");
+    }
+  } catch (e) {
+    console.error("mpesa run", String(e));
+    await admin.from("payment_attempts").update({ status: "failed", error: "Falha de ligação à M-Pesa", updated_at: new Date().toISOString() }).eq("id", attemptId).eq("status", "pending");
+  }
+}
+// B2C: paga um levantamento directamente para o M-Pesa do produtor
+async function payoutStart(w: any) {
+  const g = await gwSettings();
+  if (!g.mpesa_enabled || !g.mpesa_payouts || !(await mpesaConfigured())) throw new UserError("O pagamento automático pela M-Pesa não está ligado (Definições → M-Pesa directo).");
+  if (w.status !== "pending") throw new UserError("Este levantamento já foi processado.");
+  if (w.method !== "mpesa") throw new UserError("Só levantamentos por M-Pesa podem ser pagos automaticamente.");
+  const phone = localPhone(w.account_number);
+  if (!phone || !/^8[45]/.test(phone)) throw new UserError("O número do levantamento não é um M-Pesa válido (84/85).");
+  const amount = Math.round(Number(w.amount_mzn));
+  if (!(amount > 0)) throw new UserError("Valor inválido.");
+  const ref = ref20("UQW" + crypto.randomUUID().replace(/-/g, "").toUpperCase());
+  const { data: began } = await admin.rpc("withdrawal_payout_begin", { _id: w.id, _ref: ref });
+  if (!began) throw new UserError("Este levantamento já tem um pagamento automático em curso. Usa «Verificar».");
+  let res: MpesaRes;
+  try {
+    res = await mpesaCall(18345, "/ipg/v1x/b2cPayment/", {
+      input_TransactionReference: ref, input_CustomerMSISDN: "258" + phone, input_Amount: String(amount),
+      input_ThirdPartyReference: ref, input_ServiceProviderCode: await secret("mpesa_service_code"),
+    }, 90_000);
+  } catch (e) {
+    console.error("mpesa b2c", String(e));
+    res = { status: 0, code: "NET", desc: "", txn: "", conv: "", raw: {} };
+  }
+  if (res.code === "INS-0") {
+    await admin.rpc("withdrawal_payout_finish", { _id: w.id, _ok: true, _txn: res.txn || ref, _note: `M-Pesa B2C ${res.txn || ref}` });
+    return { status: "paid", txn: res.txn || ref };
+  }
+  if (res.code === "NET" || res.code === "INS-9" || res.status >= 500) {
+    // Não sabemos se saiu: fica marcado para confirmar (nunca pagar duas vezes)
+    await admin.from("withdrawals").update({ admin_note: `M-Pesa B2C por confirmar (ref ${ref}) — carrega em «Verificar»` }).eq("id", w.id);
+    return { status: "pending", ref };
+  }
+  console.error("mpesa b2c recusado", res.status, res.code, res.desc);
+  const msg = mpesaFriendly(res.code, res.desc);
+  await admin.rpc("withdrawal_payout_finish", { _id: w.id, _ok: false, _txn: null, _note: `M-Pesa recusou (${res.code}): ${msg}` });
+  throw new UserError(msg === BAD_KEY ? "A M-Pesa recusou as credenciais. Verifica a chave da API, a chave pública e o código de serviço." : msg);
+}
+async function payoutCheck(w: any) {
+  if (w.status !== "pending" || !w.payout_ref) throw new UserError("Sem pagamento automático por confirmar.");
+  const code = await secret("mpesa_service_code");
+  const res = await mpesaCall(18353, `/ipg/v1x/queryTransactionStatus/?input_ThirdPartyReference=${encodeURIComponent(w.payout_ref)}&input_QueryReference=${encodeURIComponent(w.payout_ref)}&input_ServiceProviderCode=${encodeURIComponent(code)}`, undefined, 30_000);
+  const st = String(res.raw?.output_ResponseTransactionStatus || "");
+  if (res.code === "INS-0" && /completed/i.test(st)) {
+    await admin.rpc("withdrawal_payout_finish", { _id: w.id, _ok: true, _txn: res.txn || w.payout_ref, _note: `M-Pesa B2C ${res.txn || w.payout_ref}` });
+    return { status: "paid", txn: res.txn || w.payout_ref };
+  }
+  if (/cancel|fail|expir|declin|reject/i.test(st) || ["INS-6", "INS-2006", "INS-2051", "INS-996", "INS-995", "INS-17", "INS-19"].includes(res.code)) {
+    await admin.rpc("withdrawal_payout_finish", { _id: w.id, _ok: false, _txn: null, _note: `M-Pesa: pagamento não concluído (${st || res.code})` });
+    return { status: "failed", error: `A M-Pesa não concluiu o pagamento (${st || res.code}). Podes tentar de novo.` };
+  }
+  return { status: "pending", detail: st || res.desc || res.code };
+}
+// Quem chama tem de ser admin com 2FA confirmado (mesma regra do is_admin() da base de dados)
+async function adminWithMfa(req: Request) {
+  const jwt = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
+  if (!jwt) return "";
+  const { data: u } = await admin.auth.getUser(jwt);
+  if (!u?.user) return "";
+  let aal = "";
+  try { aal = String(JSON.parse(atob(jwt.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))).aal || ""); } catch { /* sem claim */ }
+  if (aal !== "aal2") return "";
+  const { data } = await admin.from("user_roles").select("role").eq("user_id", u.user.id).eq("role", "admin").maybeSingle();
+  return data ? u.user.id : "";
 }
 
 // ---------- Pagar.co.mz ----------
@@ -253,6 +389,17 @@ async function start(order: any, req: Request, returnUrl: string) {
   const { count: prev } = await admin.from("payment_attempts").select("id", { count: "exact", head: true }).eq("order_id", order.id);
   for (const p of list) {
     try {
+      if (p === "mpesa") {
+        if (method !== "mpesa" || !phone || amount < 1) { tried.push("mpesa: método/número"); continue; }
+        const { data: at, error: insErr } = await admin.from("payment_attempts").insert({ order_id: order.id, provider: "mpesa", method, ext_reference: order.reference }).select().single();
+        if (insErr) return { provider: p, mode: "push", resumed: true };
+        const thirdRef = ref20(String(at.id).replace(/-/g, "").toUpperCase());
+        await admin.from("payment_attempts").update({ ext_reference: thirdRef }).eq("id", at.id);
+        await admin.from("orders").update({ gateway: "mpesa" }).eq("id", order.id).eq("status", "pending");
+        // @ts-ignore EdgeRuntime existe no Supabase
+        EdgeRuntime.waitUntil(mpesaRun(order, at.id, phone, thirdRef));
+        return { provider: p, mode: "push" };
+      }
       if (p === "pagar") {
         if (!phone || amount < 20 || amount > 40000) { tried.push("pagar: número/valor"); continue; }
         const extRef = prev ? `${order.reference}-${(prev || 0) + 1}` : order.reference;
@@ -425,21 +572,20 @@ Deno.serve(async (req) => {
     }
     if (action === "status") {
       const list = await available();
-      return json({ enabled: list.length > 0, providers: list, paypal: await paypalOn() });
+      const g = await gwSettings();
+      return json({ enabled: list.length > 0, providers: list, paypal: await paypalOn(), mpesa_payouts: Boolean(g.mpesa_enabled && g.mpesa_payouts && list.includes("mpesa")) });
     }
     let body: any = {}; try { body = raw ? JSON.parse(raw) : {}; } catch { body = {}; }
-    // Quem pede: a sessão do utilizador ou, numa chamada interna da função «api» (segredo partilhado), o comprador indicado
-    let uid = "";
-    const internal = req.headers.get("x-internal-secret") || "";
-    if (internal && UUID.test(String(body.as_user || ""))) {
-      const ok = await admin.rpc("notify_secret_ok", { _s: internal });
-      if (ok.data) uid = String(body.as_user);
-    }
-    if (!uid) {
-      const jwt = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
-      const { data: u } = jwt ? await admin.auth.getUser(jwt) : { data: null as any };
-      if (!u?.user) return json({ error: "Sessão inválida" }, 401);
-      uid = u.user.id;
+    const jwt = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
+    const { data: u } = jwt ? await admin.auth.getUser(jwt) : { data: null as any };
+    if (!u?.user) return json({ error: "Sessão inválida" }, 401);
+    const uid: string = u.user.id;
+    if (action === "payout" || action === "payout_check") {
+      if (!(await adminWithMfa(req))) return json({ error: "Só administradores com 2FA confirmado" }, 403);
+      if (!UUID.test(String(body.withdrawal_id || ""))) return json({ error: "Pedido inválido" }, 400);
+      const { data: w } = await admin.from("withdrawals").select("*").eq("id", body.withdrawal_id).maybeSingle();
+      if (!w) return json({ error: "Levantamento não encontrado" }, 404);
+      return json(action === "payout" ? await payoutStart(w) : await payoutCheck(w));
     }
     if (action === "plan_start" || action === "plan_poll") {
       if (!UUID.test(String(body.plan_payment_id || ""))) return json({ error: "Pedido inválido" }, 400);
