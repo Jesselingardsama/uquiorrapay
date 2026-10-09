@@ -1,6 +1,6 @@
 // Cartão «Notificações de vendas»: liga as notificações neste aparelho (telemóvel, app ou computador).
-import { api } from "./api.js?v=202610092030";
-import { state, tr, toast, ICON } from "./ui.js?v=202610092030";
+import { api } from "./api.js?v=202610092130";
+import { state, tr, toast, ICON } from "./ui.js?v=202610092130";
 
 const supported = () => "serviceWorker" in navigator && "PushManager" in window && "Notification" in window && Boolean(state.settings.push_public_key);
 const keyBytes = (b64) => {

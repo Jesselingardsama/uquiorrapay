@@ -1,5 +1,5 @@
 // Estado global, tradução, formatação e componentes reutilizáveis.
-import { CONFIG } from "./config.js?v=202610092030";
+import { CONFIG } from "./config.js?v=202610092130";
 
 const store = (() => {
   try { return window.localStorage; } catch { return null; }

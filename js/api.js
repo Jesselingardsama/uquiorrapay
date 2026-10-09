@@ -1,5 +1,5 @@
 // Única camada que fala com o Supabase. Todas as funções devolvem dados ou lançam Error.
-import { CONFIG } from "./config.js?v=202610092030";
+import { CONFIG } from "./config.js?v=202610092130";
 
 // Se a sessão expirou (comum no telemóvel depois de estar parado), renova e repete o pedido sozinho.
 // Antes era preciso repetir a acção duas vezes (a 1.ª falhava, a 2.ª já ia com a sessão renovada).
@@ -626,7 +626,7 @@ export const api = {
     try {
       const { data, error } = await sb.functions.invoke("gateways?action=status", { body: {} });
       if (error) return { enabled: false, paypal: false, mpesa_payouts: false };
-      return { enabled: Boolean(data?.enabled), paypal: Boolean(data?.paypal), mpesa_payouts: Boolean(data?.mpesa_payouts), providers: data?.providers || [] };
+      return { enabled: Boolean(data?.enabled), paypal: Boolean(data?.paypal), mpesa_payouts: Boolean(data?.mpesa_payouts), payouts: data?.payouts || {}, providers: data?.providers || [] };
     } catch { return { enabled: false, paypal: false, mpesa_payouts: false }; }
   },
   // Inicia o pagamento automático no primeiro fornecedor disponível (Pagar.co.mz, e2Payments ou PaySuite) ou no PayPal

@@ -3,12 +3,14 @@
 //   e2Payments   (M-Pesa / e-Mola C2B — o pedido fica à espera do PIN do cliente)
 //   PaySuite     (página de pagamento; usa a função «paysuite» já existente)
 //   M-Pesa directo (Vodacom Open API: C2B no checkout + B2C para pagar levantamentos; RSA/PKCS1 do segredo)
+//   NetShop      (M-Pesa / e-Mola / mKesh pela API netshop.co.mz; cobrança em tempo real, webhook assinado e payouts B2C)
+//   iMali Way    (Paytek — M-Pesa / e-Mola / mKesh por push C2B; token RSA/PKCS1 + X-Client-ID; webhook assinado)
 //   PayPal       (internacional: conta PayPal ou cartão Visa/Mastercard pela página do PayPal; cobra em USD)
 // Ações:
 //   POST ?action=status                 -> fornecedores disponíveis (público)
 //   POST ?action=start  {order_id, return_url}  (dono do pedido) -> {provider, mode:"push"} | {provider, mode:"redirect", url}
 //   POST ?action=poll   {order_id}      (dono do pedido) -> {status: paid|pending|failed, provider, error}
-//   POST ?action=webhook&p=pagar        (Pagar.co.mz, assinatura HMAC)
+//   POST ?action=webhook&p=pagar|netshop|imali   (webhooks assinados dos fornecedores)
 //   POST ?action=plan_start {plan_payment_id}  (dono) -> mensalidade do plano Pro/Elite pela Pagar (pedido no telemóvel)
 //   POST ?action=plan_poll  {plan_payment_id}  (dono) -> {status: paid|pending|failed, error}
 //   POST ?action=payout {withdrawal_id}        (admin com 2FA) -> paga o levantamento por M-Pesa B2C
@@ -32,8 +34,9 @@ class UserError extends Error {}
 
 const PAGAR_API = "https://api.pagar.co.mz/api/v1";
 const E2_API = "https://e2payments.explicador.co.mz";
-type Provider = "mpesa" | "pagar" | "e2payments" | "paysuite";
-const ALL_PROVIDERS: Provider[] = ["mpesa", "e2payments", "pagar", "paysuite"];
+type Provider = "mpesa" | "netshop" | "imali" | "pagar" | "e2payments" | "paysuite";
+const ALL_PROVIDERS: Provider[] = ["mpesa", "netshop", "imali", "e2payments", "pagar", "paysuite"];
+const NETSHOP_API = "https://www.netshop.co.mz/api/v1";
 // Erro guardado na tentativa quando o fornecedor recusa as credenciais (a administração vê-o e não conta para o limite de tentativas)
 const BAD_KEY = "Chave da API do fornecedor inválida — verificar em Administração → Definições";
 
@@ -80,6 +83,8 @@ async function available(): Promise<Provider[]> {
   const out: Provider[] = [];
   for (const p of order) {
     if (p === "mpesa" && g.mpesa_enabled && (await mpesaConfigured())) out.push(p);
+    if (p === "netshop" && g.netshop_enabled && (await netshopConfigured())) out.push(p);
+    if (p === "imali" && g.imali_enabled && (await imaliConfigured())) out.push(p);
     if (p === "pagar" && g.pagar_enabled && (await secret("pagar_api_key")) && (await secret("pagar_signing_secret"))) out.push(p);
     if (p === "e2payments" && g.e2_enabled && (await secret("e2_client_id")) && (await secret("e2_client_secret")) &&
         ((await secret("e2_mpesa_wallet")) || (await secret("e2_emola_wallet")))) out.push(p);
@@ -152,19 +157,52 @@ async function mpesaRun(order: any, attemptId: string, phone: string, thirdRef: 
     await admin.from("payment_attempts").update({ status: "failed", error: "Falha de ligação à M-Pesa", updated_at: new Date().toISOString() }).eq("id", attemptId).eq("status", "pending");
   }
 }
-// B2C: paga um levantamento directamente para o M-Pesa do produtor
-async function payoutStart(w: any) {
+// Quem pode pagar levantamentos automaticamente, por método (ordem de preferência)
+async function payoutProviders() {
   const g = await gwSettings();
-  if (!g.mpesa_enabled || !g.mpesa_payouts || !(await mpesaConfigured())) throw new UserError("O pagamento automático pela M-Pesa não está ligado (Definições → M-Pesa directo).");
+  const out: Record<string, string[]> = { mpesa: [], emola: [] };
+  if (g.mpesa_enabled && g.mpesa_payouts && (await mpesaConfigured())) out.mpesa.push("mpesa");
+  if (g.netshop_enabled && g.netshop_payouts && (await netshopConfigured())) { out.mpesa.push("netshop"); out.emola.push("netshop"); }
+  return out;
+}
+// B2C: paga um levantamento directamente para a carteira do produtor (M-Pesa directo ou NetShop)
+async function payoutStart(w: any) {
   if (w.status !== "pending") throw new UserError("Este levantamento já foi processado.");
-  if (w.method !== "mpesa") throw new UserError("Só levantamentos por M-Pesa podem ser pagos automaticamente.");
+  if (w.method !== "mpesa" && w.method !== "emola") throw new UserError("Só levantamentos por M-Pesa ou e-Mola podem ser pagos automaticamente.");
+  const provider = ((await payoutProviders())[w.method] || [])[0];
+  if (!provider) throw new UserError(`Nenhum fornecedor ligado para pagar ${w.method === "emola" ? "e-Mola" : "M-Pesa"} automaticamente (Definições → Pagamento automático → B2C).`);
   const phone = localPhone(w.account_number);
-  if (!phone || !/^8[45]/.test(phone)) throw new UserError("O número do levantamento não é um M-Pesa válido (84/85).");
+  if (!phone || !phoneMatchesMethod(phone, w.method)) throw new UserError(`O número do levantamento não é ${w.method === "emola" ? "um e-Mola válido (86/87)" : "um M-Pesa válido (84/85)"}.`);
   const amount = Math.round(Number(w.amount_mzn));
   if (!(amount > 0)) throw new UserError("Valor inválido.");
   const ref = ref20("UQW" + crypto.randomUUID().replace(/-/g, "").toUpperCase());
-  const { data: began } = await admin.rpc("withdrawal_payout_begin", { _id: w.id, _ref: ref });
+  const { data: began } = await admin.rpc("withdrawal_payout_begin", { _id: w.id, _ref: ref, _provider: provider });
   if (!began) throw new UserError("Este levantamento já tem um pagamento automático em curso. Usa «Verificar».");
+  if (provider === "netshop") {
+    try {
+      const d = await netshopCall("POST", "/payouts", { amount, currency: "MZN", method: w.method, msisdn: "+258" + phone, reference: ref, metadata: { withdrawal_id: w.id, site: "uquiorrapay" } }, `uqw-${w.id}`, 90_000);
+      const txn = String(d?.provider?.transactionID || d?.id || ref);
+      if (d?.status === "completed") { await admin.rpc("withdrawal_payout_finish", { _id: w.id, _ok: true, _txn: txn, _note: `NetShop B2C ${txn}` }); return { status: "paid", txn }; }
+      if (d?.status === "failed") {
+        const why = netshopFail(d);
+        await admin.rpc("withdrawal_payout_finish", { _id: w.id, _ok: false, _txn: null, _note: `NetShop recusou: ${why}` });
+        throw new UserError(`A NetShop recusou o pagamento: ${why}`);
+      }
+      await admin.from("withdrawals").update({ admin_note: `NetShop B2C por confirmar (ref ${ref}) — carrega em «Verificar»` }).eq("id", w.id);
+      return { status: "pending", ref };
+    } catch (e) {
+      if (e instanceof UserError) throw e;
+      const st = Number((e as any).status || 0), code = String((e as any).code || "");
+      console.error("netshop payout", String(e));
+      if (st >= 400 && st < 500) {
+        const why = st === 401 || st === 403 ? "credenciais NetShop inválidas" : code === "insufficient_balance" ? "saldo NetShop insuficiente" : code || String((e as any).detail || "pedido recusado");
+        await admin.rpc("withdrawal_payout_finish", { _id: w.id, _ok: false, _txn: null, _note: `NetShop recusou: ${why}` });
+        throw new UserError(`A NetShop recusou o pagamento (${why}).`);
+      }
+      await admin.from("withdrawals").update({ admin_note: `NetShop B2C por confirmar (ref ${ref}) — carrega em «Verificar»` }).eq("id", w.id);
+      return { status: "pending", ref };
+    }
+  }
   let res: MpesaRes;
   try {
     res = await mpesaCall(18345, "/ipg/v1x/b2cPayment/", {
@@ -191,6 +229,13 @@ async function payoutStart(w: any) {
 }
 async function payoutCheck(w: any) {
   if (w.status !== "pending" || !w.payout_ref) throw new UserError("Sem pagamento automático por confirmar.");
+  if (w.payout_provider === "netshop") {
+    const d = await netshopCall("GET", `/payouts/${encodeURIComponent(w.payout_ref)}`, undefined, undefined, 30_000);
+    const txn = String(d?.provider?.transactionID || d?.id || w.payout_ref);
+    if (d?.status === "completed") { await admin.rpc("withdrawal_payout_finish", { _id: w.id, _ok: true, _txn: txn, _note: `NetShop B2C ${txn}` }); return { status: "paid", txn }; }
+    if (d?.status === "failed") { await admin.rpc("withdrawal_payout_finish", { _id: w.id, _ok: false, _txn: null, _note: `NetShop: pagamento não concluído (${netshopFail(d)})` }); return { status: "failed", error: `A NetShop não concluiu o pagamento (${netshopFail(d)}). Podes tentar de novo.` }; }
+    return { status: "pending", detail: String(d?.status || "") };
+  }
   const code = await secret("mpesa_service_code");
   const res = await mpesaCall(18353, `/ipg/v1x/queryTransactionStatus/?input_ThirdPartyReference=${encodeURIComponent(w.payout_ref)}&input_QueryReference=${encodeURIComponent(w.payout_ref)}&input_ServiceProviderCode=${encodeURIComponent(code)}`, undefined, 30_000);
   const st = String(res.raw?.output_ResponseTransactionStatus || "");
@@ -215,6 +260,171 @@ async function adminWithMfa(req: Request) {
   if (aal !== "aal2") return "";
   const { data } = await admin.from("user_roles").select("role").eq("user_id", u.user.id).eq("role", "admin").maybeSingle();
   return data ? u.user.id : "";
+}
+
+// ---------- NetShop (netshop.co.mz/docs) ----------
+async function netshopConfigured() { return Boolean((await secret("netshop_api_key")) && (await secret("netshop_wallet_id"))); }
+async function netshopCall(method: "GET" | "POST", path: string, body?: unknown, idem?: string, timeoutMs = 120_000) {
+  const headers: Record<string, string> = { Authorization: `Bearer ${await secret("netshop_api_key")}`, "X-Wallet-ID": await secret("netshop_wallet_id"), Accept: "application/json" };
+  if (body) headers["Content-Type"] = "application/json";
+  if (idem) headers["Idempotency-Key"] = idem;
+  const r = await fetch(NETSHOP_API + path, { method, headers, body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(timeoutMs) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    console.error("netshop", method, path, r.status, JSON.stringify(d).slice(0, 300));
+    const e = new Error(`netshop ${r.status} ${d?.error || d?.code || ""}`.trim());
+    (e as any).status = r.status; (e as any).code = String(d?.error || d?.code || ""); (e as any).detail = String(d?.message || d?.failed_reason || "");
+    throw e;
+  }
+  return d;
+}
+const netshopFail = (d: any) => String(d?.failed_reason || d?.provider?.responseDesc || "Pagamento não confirmado (PIN cancelado, saldo insuficiente ou tempo esgotado)").slice(0, 160);
+// A cobrança por carteira móvel é confirmada em tempo real: a chamada pode demorar até o cliente pôr o PIN
+async function netshopRun(order: any, attemptId: string, method: string, phone: string, extRef: string) {
+  try {
+    const d = await netshopCall("POST", "/charges", {
+      amount: Math.round(Number(order.amount_mzn)), currency: "MZN", method, msisdn: "+258" + phone,
+      reference: extRef, metadata: { order_id: order.id, attempt_id: attemptId, site: "uquiorrapay" },
+    }, `uq-${attemptId}`);
+    const id = String(d?.id || "");
+    if (id) await admin.from("payment_attempts").update({ external_id: id, updated_at: new Date().toISOString() }).eq("id", attemptId);
+    if (d?.status === "paid") {
+      const { error } = await admin.rpc("gateway_mark_paid2", { _order: order.id, _gateway: "netshop", _payment_id: id || extRef, _amount: Number(d.amount ?? order.amount_mzn) });
+      if (error) throw new Error(error.message);
+      await admin.from("orders").update({ gateway_payment_id: id || extRef }).eq("id", order.id);
+    } else if (d?.status === "failed") {
+      await admin.from("payment_attempts").update({ status: "failed", error: netshopFail(d), updated_at: new Date().toISOString() }).eq("id", attemptId).eq("status", "pending");
+    } // pending: fica para o poll / webhook
+  } catch (e) {
+    const st = Number((e as any).status || 0), code = String((e as any).code || "");
+    console.error("netshop run", String(e));
+    const msg = st === 401 || st === 403 ? BAD_KEY : code === "amount_below_minimum" ? "Valor abaixo do mínimo do fornecedor (10 MT)" : code === "method_disabled" ? "Método desligado na conta NetShop" : String((e as any).detail || "") || "Falha de ligação ao fornecedor";
+    await admin.from("payment_attempts").update({ status: "failed", error: msg, updated_at: new Date().toISOString() }).eq("id", attemptId).eq("status", "pending");
+  }
+}
+async function netshopSync(order: any, attempt: any) {
+  const d = await netshopCall("GET", `/charges/${encodeURIComponent(attempt.external_id || attempt.ext_reference || order.reference)}`, undefined, undefined, 30_000);
+  if (d?.status === "paid") {
+    const ref = String(d.reference || "");
+    if (ref && ref !== order.reference && !ref.startsWith(order.reference + "-")) throw new Error("referência diferente");
+    const { error } = await admin.rpc("gateway_mark_paid2", { _order: order.id, _gateway: "netshop", _payment_id: String(d.id || attempt.external_id || ""), _amount: Number(d.amount ?? order.amount_mzn) });
+    if (error) throw new Error(error.message);
+    return "paid";
+  }
+  if (d?.status === "failed") {
+    if (attempt.id) await admin.from("payment_attempts").update({ status: "failed", error: netshopFail(d), updated_at: new Date().toISOString() }).eq("id", attempt.id).eq("status", "pending");
+    return "failed";
+  }
+  return "pending";
+}
+// Webhook: X-NetShop-Signature = HMAC-SHA256(segredo, corpo). Confirma sempre na API antes de marcar pago.
+async function webhookNetshop(req: Request, raw: string) {
+  const sec = await secret("netshop_webhook_secret");
+  const sig = (req.headers.get("X-NetShop-Signature") || "").replace(/^sha256=/i, "").trim().toLowerCase();
+  if (!sec || !sig) return false;
+  if (!safeEq(await hmac(sec, raw), sig)) return false;
+  let ev: any = {}; try { ev = JSON.parse(raw); } catch { return false; }
+  const type = String(ev?.type || ev?.event || "");
+  const obj = ev?.data?.object ?? ev?.data ?? ev?.charge ?? ev?.payout ?? ev;
+  const ref = String(obj?.reference || ""), id = String(obj?.id || "");
+  if (type.startsWith("payout.")) {
+    const { data: w } = ref ? await admin.from("withdrawals").select("*").eq("payout_ref", ref).eq("status", "pending").maybeSingle() : { data: null as any };
+    if (w) await payoutCheck(w).catch((e) => console.error("netshop payout webhook", String(e)));
+    return true;
+  }
+  let at: any = null;
+  if (id) at = (await admin.from("payment_attempts").select("*").eq("provider", "netshop").eq("external_id", id).order("created_at", { ascending: false }).limit(1).maybeSingle()).data;
+  if (!at && ref) at = (await admin.from("payment_attempts").select("*").eq("provider", "netshop").eq("ext_reference", ref).order("created_at", { ascending: false }).limit(1).maybeSingle()).data;
+  if (!at) return true;
+  const { data: order } = await admin.from("orders").select("id,reference,status,amount_mzn").eq("id", at.order_id).maybeSingle();
+  if (!order || order.status !== "pending") return true;
+  await netshopSync(order, { ...at, external_id: at.external_id || id || null });
+  return true;
+}
+
+// ---------- iMali Way (Paytek — "iMali Payment Gateway API — Partner Integration") ----------
+async function imaliConfigured() {
+  const g = await gwSettings();
+  return Boolean(/^https:\/\//.test(String(g.imali_base_url || "")) && (await secret("imali_api_key")) && (await secret("imali_public_key")) && (await secret("imali_client_id")) && (await secret("imali_store_account")));
+}
+async function imaliBase() { return String((await gwSettings()).imali_base_url || "").trim().replace(/\/+$/, ""); }
+// Token ("privateKey") = Base64(RSA/PKCS1 v1.5 da API key com a chave pública da iMali); gerado a cada pedido
+async function imaliHeaders() {
+  let pub = (await secret("imali_public_key")).replace(/\\n/g, "\n").trim().replace(/^["']|["']$/g, "");
+  if (!pub.includes("BEGIN")) pub = `-----BEGIN PUBLIC KEY-----\n${pub.replace(/\s/g, "")}\n-----END PUBLIC KEY-----`;
+  const pk = forge.pki.publicKeyFromPem(pub);
+  const token = forge.util.encode64(pk.encrypt(await secret("imali_api_key"), "RSAES-PKCS1-V1_5"));
+  return { Accept: "application/json", "Content-Type": "application/json", Authorization: `Bearer ${token}`, "X-Client-ID": await secret("imali_client_id") };
+}
+async function imaliPush(order: any, method: string, phone: string, extRef: string) {
+  const r = await fetch(`${await imaliBase()}/payments`, {
+    method: "POST", headers: await imaliHeaders(), signal: AbortSignal.timeout(40_000),
+    body: JSON.stringify({ client_account_number: phone, amount: Number(order.amount_mzn), store_account_number: await secret("imali_store_account"), partner_transaction_id: extRef, payment_method: method, payment_type: "push", transaction_type: "C2B" }),
+  });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok || d?.errors) {
+    console.error("imali push", r.status, JSON.stringify(d).slice(0, 300));
+    const e = new Error(`imali ${r.status}`); (e as any).status = r.status; (e as any).detail = typeof d?.errors === "string" ? d.errors : JSON.stringify(d?.errors || d?.message || "").slice(0, 120); throw e;
+  }
+  return d?.data ?? d;
+}
+// Estado: PENDING / SUCCESS / FAILED / EXPIRED (GET com parâmetros; se o servidor exigir corpo JSON, repete em POST)
+async function imaliStatus(extRef: string) {
+  const base = await imaliBase(), headers = await imaliHeaders();
+  const q = `partner_transaction_id=${encodeURIComponent(extRef)}&payment_type=push`;
+  let r = await fetch(`${base}/payments/status?${q}`, { headers, signal: AbortSignal.timeout(30_000) });
+  let d = await r.json().catch(() => ({}));
+  let st = String(d?.data?.status || d?.status || "").toUpperCase();
+  if (!r.ok || !st) {
+    r = await fetch(`${base}/payments/status`, { method: "POST", headers, body: JSON.stringify({ partner_transaction_id: extRef, payment_type: "push" }), signal: AbortSignal.timeout(30_000) });
+    d = await r.json().catch(() => ({}));
+    st = String(d?.data?.status || d?.status || "").toUpperCase();
+  }
+  if (!r.ok) throw new Error(`imali status ${r.status}`);
+  return { status: st, txn: String(d?.data?.transaction_id || d?.transaction_id || ""), reason: String(d?.data?.status_reason || d?.status_reason || "") };
+}
+async function imaliSync(order: any, attempt: any) {
+  const s = await imaliStatus(attempt.ext_reference || order.reference);
+  if (s.status === "SUCCESS") {
+    const { error } = await admin.rpc("gateway_mark_paid2", { _order: order.id, _gateway: "imali", _payment_id: s.txn || attempt.external_id || attempt.ext_reference, _amount: Number(order.amount_mzn) });
+    if (error) throw new Error(error.message);
+    return "paid";
+  }
+  if (s.status === "FAILED" || s.status === "EXPIRED") {
+    if (attempt.id) await admin.from("payment_attempts").update({ status: "failed", error: s.status === "EXPIRED" ? "Tempo esgotado: o cliente não confirmou no telemóvel" : (s.reason || "Pagamento não confirmado (PIN cancelado ou saldo insuficiente)").slice(0, 160), updated_at: new Date().toISOString() }).eq("id", attempt.id).eq("status", "pending");
+    return "failed";
+  }
+  return "pending";
+}
+// Webhook: X-Webhook-Signature "sha256=<hex>" = HMAC-SHA256(segredo, `${timestamp}.${corpo}`), X-Webhook-Timestamp com janela de 5 min
+async function webhookImali(req: Request, raw: string) {
+  const sec = await secret("imali_webhook_secret");
+  const sig = (req.headers.get("X-Webhook-Signature") || "").replace(/^sha256=/i, "").trim().toLowerCase();
+  const ts = (req.headers.get("X-Webhook-Timestamp") || "").trim();
+  if (!sec || !sig || !/^\d+$/.test(ts)) return false;
+  const tsSec = Number(ts) > 1e12 ? Number(ts) / 1000 : Number(ts);
+  if (Math.abs(Date.now() / 1000 - tsSec) > 300) return false;
+  if (!safeEq(await hmac(sec, `${ts}.${raw}`), sig)) return false;
+  let ev: any = {}; try { ev = JSON.parse(raw); } catch { return false; }
+  const type = String(ev?.type || ev?.event || "").toUpperCase();
+  const data = ev?.data ?? ev;
+  const ref = String(data?.partner_transaction_id || data?.reference || "");
+  if (!ref) return true;
+  const { data: at } = await admin.from("payment_attempts").select("*").eq("provider", "imali").eq("ext_reference", ref).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (!at) return true;
+  const { data: order } = await admin.from("orders").select("id,reference,status,amount_mzn").eq("id", at.order_id).maybeSingle();
+  if (!order || order.status !== "pending") return true;
+  if (type.endsWith("SUCCESS") || type.endsWith("FAILED") || type.endsWith("EXPIRED")) {
+    try { await imaliSync(order, at); return true; } catch (e) { console.error("imali sync após webhook", String(e)); }
+    // A consulta de estado falhou: o webhook tem assinatura válida com o segredo partilhado, por isso aceita-se
+    if (type.endsWith("SUCCESS")) {
+      const { error } = await admin.rpc("gateway_mark_paid2", { _order: order.id, _gateway: "imali", _payment_id: String(data?.transaction_id || at.external_id || ref), _amount: Number(order.amount_mzn) });
+      if (error) console.error("imali mark paid", error.message);
+    } else {
+      await admin.from("payment_attempts").update({ status: "failed", error: String(data?.status_reason || "Pagamento não confirmado").slice(0, 160), updated_at: new Date().toISOString() }).eq("id", at.id).eq("status", "pending");
+    }
+  }
+  return true;
 }
 
 // ---------- Pagar.co.mz ----------
@@ -400,6 +610,26 @@ async function start(order: any, req: Request, returnUrl: string) {
         EdgeRuntime.waitUntil(mpesaRun(order, at.id, phone, thirdRef));
         return { provider: p, mode: "push" };
       }
+      if (p === "netshop") {
+        if (!phone || amount < 10) { tried.push("netshop: número/valor"); continue; }
+        const extRef = prev ? `${order.reference}-${(prev || 0) + 1}` : order.reference;
+        const { data: at, error: insErr } = await admin.from("payment_attempts").insert({ order_id: order.id, provider: "netshop", method, ext_reference: extRef }).select().single();
+        if (insErr) return { provider: p, mode: "push", resumed: true };
+        await admin.from("orders").update({ gateway: "netshop" }).eq("id", order.id).eq("status", "pending");
+        // @ts-ignore EdgeRuntime existe no Supabase
+        EdgeRuntime.waitUntil(netshopRun(order, at.id, method, phone, extRef));
+        return { provider: p, mode: "push" };
+      }
+      if (p === "imali") {
+        if (!phone || amount < 1) { tried.push("imali: número/valor"); continue; }
+        const extRef = prev ? `${order.reference}${(prev || 0) + 1}` : order.reference;
+        const { data: at, error: insErr } = await admin.from("payment_attempts").insert({ order_id: order.id, provider: "imali", method, ext_reference: extRef }).select().single();
+        if (insErr) return { provider: p, mode: "push", resumed: true };
+        const d = await imaliPush(order, method, phone, extRef); // falha aqui → marca a tentativa e passa ao seguinte
+        await admin.from("payment_attempts").update({ external_id: String(d?.transaction_id || d?.id || ""), updated_at: new Date().toISOString() }).eq("id", at.id);
+        await admin.from("orders").update({ gateway: "imali" }).eq("id", order.id).eq("status", "pending");
+        return { provider: p, mode: "push" };
+      }
       if (p === "pagar") {
         if (!phone || amount < 20 || amount > 40000) { tried.push("pagar: número/valor"); continue; }
         const extRef = prev ? `${order.reference}-${(prev || 0) + 1}` : order.reference;
@@ -465,11 +695,16 @@ async function poll(order: any) {
   if (order.payment_method === "paypal") return await paypalSync(order);
   const { data: at } = await admin.from("payment_attempts").select("*").eq("order_id", order.id).order("created_at", { ascending: false }).limit(1).maybeSingle();
   if (!at) return { status: "none" };
-  if (at.status === "pending" && at.provider === "pagar") {
-    try { const s = await pagarSync(order, at); if (s !== "pending") return { status: s, provider: at.provider, error: s === "failed" ? "O pagamento não foi confirmado." : null }; }
-    catch (e) { console.error("poll pagar", String(e)); }
+  if (at.status === "pending" && ["pagar", "netshop", "imali"].includes(at.provider)) {
+    try {
+      const s = at.provider === "pagar" ? await pagarSync(order, at) : at.provider === "netshop" ? await netshopSync(order, at) : await imaliSync(order, at);
+      if (s !== "pending") {
+        const { data: fresh } = s === "failed" ? await admin.from("payment_attempts").select("error").eq("id", at.id).maybeSingle() : { data: null as any };
+        return { status: s, provider: at.provider, error: s === "failed" ? friendly(fresh?.error) || "O pagamento não foi confirmado." : null };
+      }
+    } catch (e) { console.error("poll", at.provider, String(e)); }
   }
-  if (at.status === "pending" && Date.now() - new Date(at.created_at).getTime() > 4 * 60 * 1000 && at.provider !== "paysuite") {
+  if (at.status === "pending" && Date.now() - new Date(at.created_at).getTime() > (["netshop", "imali"].includes(at.provider) ? 6 : 4) * 60 * 1000 && at.provider !== "paysuite") {
     await admin.from("payment_attempts").update({ status: "failed", error: "Tempo esgotado", updated_at: new Date().toISOString() }).eq("id", at.id).eq("status", "pending");
     return { status: "failed", provider: at.provider, error: "Tempo esgotado. Tenta de novo." };
   }
@@ -566,14 +801,16 @@ Deno.serve(async (req) => {
   if (raw.length > 20_000) return json({ error: "Pedido demasiado grande" }, 413);
   try {
     if (action === "webhook") {
-      if (url.searchParams.get("p") !== "pagar") return json({ error: "Desconhecido" }, 400);
-      const ok = await webhookPagar(req, raw);
+      const p = url.searchParams.get("p");
+      const ok = p === "pagar" ? await webhookPagar(req, raw) : p === "netshop" ? await webhookNetshop(req, raw) : p === "imali" ? await webhookImali(req, raw) : null;
+      if (ok === null) return json({ error: "Desconhecido" }, 400);
       return json({ ok }, ok ? 200 : 401);
     }
     if (action === "status") {
       const list = await available();
       const g = await gwSettings();
-      return json({ enabled: list.length > 0, providers: list, paypal: await paypalOn(), mpesa_payouts: Boolean(g.mpesa_enabled && g.mpesa_payouts && list.includes("mpesa")) });
+      const po = await payoutProviders();
+      return json({ enabled: list.length > 0, providers: list, paypal: await paypalOn(), mpesa_payouts: po.mpesa.length > 0, payouts: { mpesa: po.mpesa.length > 0, emola: po.emola.length > 0 } });
     }
     let body: any = {}; try { body = raw ? JSON.parse(raw) : {}; } catch { body = {}; }
     const jwt = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");

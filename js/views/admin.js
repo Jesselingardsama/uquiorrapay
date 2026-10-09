@@ -1,12 +1,12 @@
 // Administração: resumo de tarefas, revisão de produtos, pagamentos, levantamentos, utilizadores, definições e segurança.
-import { api } from "../api.js?v=202610092030";
-import { state, tr, esc, mzn, siteUrl, statusBadge, date, toast, modal, emptyState, methodLabel, isAdmin, dashShell, supportOk, ICON, copyText, catLabel, dateTime, trackUpload, donutSVG, areaSVG, dailySeries, deltaHTML } from "../ui.js?v=202610092030";
-import { go, rerender, bumpAdminCounts } from "../app.js?v=202610092030";
-import { adminSecurityLog } from "./security.js?v=202610092030";
-import { pushCardHTML, wirePush } from "../push.js?v=202610092030";
+import { api } from "../api.js?v=202610092130";
+import { state, tr, esc, mzn, siteUrl, statusBadge, date, toast, modal, emptyState, methodLabel, isAdmin, dashShell, supportOk, ICON, copyText, catLabel, dateTime, trackUpload, donutSVG, areaSVG, dailySeries, deltaHTML } from "../ui.js?v=202610092130";
+import { go, rerender, bumpAdminCounts } from "../app.js?v=202610092130";
+import { adminSecurityLog } from "./security.js?v=202610092130";
+import { pushCardHTML, wirePush } from "../push.js?v=202610092130";
 function busy(btn, on) { if (btn) { btn.disabled = on; btn.classList.toggle("busy", on); } }
-import { DOCS, KYC_TXT } from "./kyc.js?v=202610092030";
-import { OB } from "./onboarding.js?v=202610092030";
+import { DOCS, KYC_TXT } from "./kyc.js?v=202610092130";
+import { OB } from "./onboarding.js?v=202610092130";
 
 const TABS = () => ({
   resumo: [tr("Resumo", "Overview"), tr("O que precisa da tua atenção hoje.", "What needs your attention today.")],
@@ -55,9 +55,11 @@ async function resumo(box, _q, alive) {
   if (!mfa.verified?.length) alerts.push([tr("Ativa a verificação em 2 passos na tua conta de administrador.", "Turn on 2-step verification for your admin account."), "#/seguranca", tr("Ativar", "Turn on")]);
   if (!(sets.payment_mpesa?.number)) alerts.push([tr("Falta o número M-Pesa para pagamentos manuais.", "M-Pesa number for manual payments is missing."), "#/admin/definicoes", tr("Preencher", "Fill in")]);
   if (!(sets.payment_emola?.number)) alerts.push([tr("Falta o número e-Mola para pagamentos manuais.", "e-Mola number for manual payments is missing."), "#/admin/definicoes", tr("Preencher", "Fill in")]);
-  { const g = sets.gateway || {}; if (!g.paysuite_enabled && !g.pagar_enabled && !g.e2_enabled && !g.mpesa_enabled) alerts.push([tr("Nenhum pagamento automático ligado (M-Pesa directo, e2Payments, Pagar.co.mz ou PaySuite). Os clientes pagam pelo método manual.", "No automatic payment enabled (M-Pesa direct, e2Payments, Pagar.co.mz or PaySuite). Customers pay manually."), "#/admin/definicoes", tr("Abrir", "Open")]); }
+  { const g = sets.gateway || {}; if (!g.paysuite_enabled && !g.pagar_enabled && !g.e2_enabled && !g.mpesa_enabled && !g.netshop_enabled && !g.imali_enabled) alerts.push([tr("Nenhum pagamento automático ligado (M-Pesa directo, NetShop, iMali Way, e2Payments, Pagar.co.mz ou PaySuite). Os clientes pagam pelo método manual.", "No automatic payment enabled (M-Pesa direct, NetShop, iMali Way, e2Payments, Pagar.co.mz or PaySuite). Customers pay manually."), "#/admin/definicoes", tr("Abrir", "Open")]); }
   { const g = sets.gateway || {}; if (g.mpesa_enabled && gws && !(gws.mpesa_api_key_set && gws.mpesa_public_key_set && gws.mpesa_service_code_set)) alerts.push([tr("A M-Pesa directa está ligada mas faltam credenciais (chave da API, chave pública ou código de serviço).", "M-Pesa direct is on but credentials are missing (API key, public key or service code)."), "#/admin/definicoes", tr("Corrigir", "Fix")]); }
   { const g = sets.gateway || {}; if (g.e2_enabled && gws && !(gws.e2_client_id_set && gws.e2_client_secret_set && (gws.e2_mpesa_wallet_set || gws.e2_emola_wallet_set))) alerts.push([tr("A e2Payments está ligada mas faltam o Client ID, o Client Secret ou as carteiras.", "e2Payments is on but the Client ID, Client Secret or wallets are missing."), "#/admin/definicoes", tr("Corrigir", "Fix")]); }
+  { const g = sets.gateway || {}; if (g.netshop_enabled && gws && !(gws.netshop_api_key_set && gws.netshop_wallet_id_set)) alerts.push([tr("A NetShop está ligada mas falta a API Key ou o Wallet ID.", "NetShop is on but the API key or Wallet ID is missing."), "#/admin/definicoes", tr("Corrigir", "Fix")]); }
+  { const g = sets.gateway || {}; if (g.imali_enabled && gws && !(gws.imali_api_key_set && gws.imali_public_key_set && gws.imali_client_id_set && gws.imali_store_account_set && /^https:\/\//.test(String(g.imali_base_url || "")))) alerts.push([tr("A iMali Way está ligada mas faltam credenciais (Base URL, API Key, chave pública, Client ID ou conta da loja).", "iMali Way is on but credentials are missing (base URL, API key, public key, client ID or store account)."), "#/admin/definicoes", tr("Corrigir", "Fix")]); }
   if (!sets.support_whatsapp) alerts.push([tr("Falta o WhatsApp de apoio ao cliente.", "Customer support WhatsApp is missing."), "#/admin/definicoes", tr("Preencher", "Fill in")]);
   { const g = sets.gateway || {}; if (g.pagar_enabled && gws && !(gws.pagar_api_key_set && gws.pagar_signing_secret_set)) alerts.push([tr("A Pagar.co.mz está ligada mas falta a chave da API ou o segredo de assinatura — os pagamentos automáticos falham.", "Pagar.co.mz is on but the API key or signing secret is missing — automatic payments fail."), "#/admin/definicoes", tr("Corrigir", "Fix")]); }
   // Últimos 30 dias vs 30 anteriores (pagamentos confirmados)
@@ -212,7 +214,7 @@ async function levantamentos(box, query, alive) {
   const uids = [...new Set(rows.map((w) => w.user_id))];
   const [kmap, holds, gwi] = await Promise.all([api.adminKycMap(uids).catch(() => []), api.adminHolds().catch(() => []), api.gatewayInfo().catch(() => ({}))]);
   if (!alive()) return;
-  const autoPay = Boolean(gwi?.mpesa_payouts);
+  const autoPay = (m) => Boolean(gwi?.payouts?.[m]);
   const kycOf = (id) => kmap.find((k) => k.user_id === id);
   const holdOf = (id) => holds.find((h) => h.user_id === id && h.withdraw_hold);
   const norm = (x) => String(x || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z ]/g, "").split(/\s+/).filter((w) => w.length > 2);
@@ -229,7 +231,7 @@ async function levantamentos(box, query, alive) {
         <td>${esc(methodLabel(w.method))}<div class="small"><b>${esc(w.account_number)}</b> · ${esc(w.account_name)}</div>
           ${kycOf(w.user_id) && !sameName(kycOf(w.user_id).full_name, w.account_name) ? `<div class="small err-text">⚠ ${tr("Titular diferente do nome verificado", "Holder differs from verified name")}: ${esc(kycOf(w.user_id).full_name)}</div>` : ""}</td>
         <td>${statusBadge(w.status, "wd")}${w.admin_note ? `<div class="small muted">${esc(w.admin_note)}</div>` : ""}</td>
-        <td class="actions">${w.status === "pending" ? `${w.payout_ref ? `<button class="btn btn-sm btn-outline-green" data-act="check">${ICON.refresh || "⟳"} ${tr("Verificar M-Pesa", "Check M-Pesa")}</button>` : autoPay && w.method === "mpesa" ? `<button class="btn btn-sm btn-green" data-act="payout">⚡ ${tr("Pagar por M-Pesa", "Pay via M-Pesa")}</button>` : ""}<button class="btn btn-sm ${autoPay && w.method === "mpesa" ? "btn-ghost-dark" : "btn-green"}" data-act="paid">${tr("Marcar como pago", "Mark as paid")}</button><button class="btn btn-sm btn-ghost-dark" data-act="rejected">${tr("Recusar", "Reject")}</button>` : w.payout_txn ? `<span class="small muted">⚡ ${esc(w.payout_txn)}</span>` : ""}</td>
+        <td class="actions">${w.status === "pending" ? `${w.payout_ref ? `<button class="btn btn-sm btn-outline-green" data-act="check">⟳ ${tr("Verificar pagamento", "Check payment")}</button>` : autoPay(w.method) ? `<button class="btn btn-sm btn-green" data-act="payout">⚡ ${tr(`Pagar por ${methodLabel(w.method)}`, `Pay via ${methodLabel(w.method)}`)}</button>` : ""}<button class="btn btn-sm ${autoPay(w.method) ? "btn-ghost-dark" : "btn-green"}" data-act="paid">${tr("Marcar como pago", "Mark as paid")}</button><button class="btn btn-sm btn-ghost-dark" data-act="rejected">${tr("Recusar", "Reject")}</button>` : w.payout_txn ? `<span class="small muted">⚡ ${esc(w.payout_provider === "netshop" ? "NetShop" : "M-Pesa")} ${esc(w.payout_txn)}</span>` : ""}</td>
       </tr>`).join("")}</tbody></table></div>` : emptyState(tr("Sem pedidos de levantamento.", "No withdrawal requests."))}`;
   box.onclick = async (e) => {
     const b = e.target.closest("[data-act]"); if (!b) return;
@@ -237,11 +239,11 @@ async function levantamentos(box, query, alive) {
     let note = null;
     if (b.dataset.act === "payout" || b.dataset.act === "check") {
       const row = rows.find((w) => w.id === id) || {};
-      if (b.dataset.act === "payout" && !(await modal({ title: tr("Pagar agora pela M-Pesa?", "Pay now via M-Pesa?"), body: tr(`Vai sair ${mzn(row.amount_mzn)} da conta M-Pesa Business para o número ${row.account_number} (${row.account_name}). Esta acção não pode ser anulada.`, `${mzn(row.amount_mzn)} will leave the M-Pesa Business account to ${row.account_number} (${row.account_name}). This cannot be undone.`), confirm: tr("Pagar", "Pay") }))) return;
+      if (b.dataset.act === "payout" && !(await modal({ title: tr(`Pagar agora por ${methodLabel(row.method)}?`, `Pay now via ${methodLabel(row.method)}?`), body: tr(`Vai sair ${mzn(row.amount_mzn)} da conta do fornecedor de pagamentos para o número ${row.account_number} (${row.account_name}). Esta acção não pode ser anulada.`, `${mzn(row.amount_mzn)} will leave the payment provider account to ${row.account_number} (${row.account_name}). This cannot be undone.`), confirm: tr("Pagar", "Pay") }))) return;
       busy(b, true);
       try {
         const r = await api.adminPayout(id, b.dataset.act === "check");
-        toast(r.status === "paid" ? tr(`Pago pela M-Pesa (${r.txn}).`, `Paid via M-Pesa (${r.txn}).`) : r.status === "failed" ? r.error : tr("A M-Pesa ainda não confirmou. Volta a verificar daqui a um minuto.", "M-Pesa hasn't confirmed yet. Check again in a minute."), r.status === "failed" ? "err" : undefined);
+        toast(r.status === "paid" ? tr(`Pago (${r.txn}).`, `Paid (${r.txn}).`) : r.status === "failed" ? r.error : tr("O fornecedor ainda não confirmou. Volta a verificar daqui a um minuto.", "The provider hasn't confirmed yet. Check again in a minute."), r.status === "failed" ? "err" : undefined);
         bumpAdminCounts(); rerender();
       } catch (err) { toast(err.message, "err"); busy(b, false); rerender(); }
       return;
@@ -492,13 +494,21 @@ async function definicoes(box, _q, alive) {
     <div class="panel gw-set"><h3>${tr("Pagamento automático", "Automatic payment")}</h3>
       <p class="small muted">${tr("Podes ligar vários fornecedores. O site usa o primeiro da lista que estiver disponível; se falhar, passa automaticamente ao seguinte. Se nenhum funcionar, o cliente paga pelo método manual. As chaves ficam encriptadas no servidor.", "You can enable several providers. The site uses the first available one; if it fails it moves to the next automatically. If none work, the customer pays manually. Keys are stored encrypted on the server.")}</p>
       <label>${tr("Ordem de preferência", "Preference order")}<select class="input" name="gw_order">${(() => {
-        const N = { mpesa: tr("M-Pesa directo", "M-Pesa direct"), e2payments: "e2Payments", pagar: "Pagar.co.mz", paysuite: "PaySuite" };
-        const opts = [["mpesa", "e2payments", "pagar", "paysuite"], ["e2payments", "mpesa", "pagar", "paysuite"], ["mpesa", "pagar", "e2payments", "paysuite"], ["e2payments", "pagar", "mpesa", "paysuite"], ["pagar", "e2payments", "mpesa", "paysuite"], ["pagar", "mpesa", "e2payments", "paysuite"], ["paysuite", "mpesa", "e2payments", "pagar"]];
-        const cur = Array.isArray(gw.order) && gw.order.length ? gw.order.join(",") : "mpesa,e2payments,pagar,paysuite";
+        const N = { mpesa: tr("M-Pesa directo", "M-Pesa direct"), netshop: "NetShop", imali: "iMali Way", e2payments: "e2Payments", pagar: "Pagar.co.mz", paysuite: "PaySuite" };
+        const opts = [
+          ["mpesa", "netshop", "imali", "e2payments", "pagar", "paysuite"],
+          ["netshop", "mpesa", "imali", "e2payments", "pagar", "paysuite"],
+          ["imali", "netshop", "mpesa", "e2payments", "pagar", "paysuite"],
+          ["netshop", "imali", "mpesa", "e2payments", "pagar", "paysuite"],
+          ["mpesa", "imali", "netshop", "e2payments", "pagar", "paysuite"],
+          ["e2payments", "mpesa", "netshop", "imali", "pagar", "paysuite"],
+          ["pagar", "netshop", "imali", "mpesa", "e2payments", "paysuite"],
+        ];
+        const cur = Array.isArray(gw.order) && gw.order.length ? gw.order.join(",") : "mpesa,netshop,imali,e2payments,pagar,paysuite";
         if (!opts.some((o) => o.join(",") === cur)) opts.unshift(cur.split(","));
         return opts.map((o) => `<option value="${o.join(",")}" ${o.join(",") === cur ? "selected" : ""}>${o.map((k) => N[k] || k).join(" → ")}</option>`).join("");
       })()}</select></label>
-      <p class="small muted">${tr("M-Pesa directo só cobra números 84/85; os pedidos e-Mola passam automaticamente ao fornecedor seguinte da lista.", "M-Pesa direct only charges 84/85 numbers; e-Mola orders fall through to the next provider in the list.")}</p>
+      <p class="small muted">${tr("M-Pesa directo só cobra números 84/85; os pedidos e-Mola passam automaticamente ao fornecedor seguinte da lista. Fornecedores que não estejam na lista escolhida entram no fim.", "M-Pesa direct only charges 84/85 numbers; e-Mola orders fall through to the next provider in the list. Providers missing from the chosen list go last.")}</p>
       ${(() => {
         const st = (k) => gws?.[k + "_set"] ? `<span class="badge st-approved">${tr("guardada", "saved")}</span>` : `<span class="badge">${tr("vazia", "empty")}</span>`;
         const key = (name, label, ph = "") => `<label>${label} ${st(name)}<input class="input" name="${name}" type="password" autocomplete="off" placeholder="${gws?.[name + "_set"] ? "••••••••" : ph}"></label>`;
@@ -511,6 +521,21 @@ async function definicoes(box, _q, alive) {
           <div class="two">${key("mpesa_api_key", tr("Chave da API (API Key)", "API key"))}${key("mpesa_service_code", tr("Código de serviço (Service Provider Code)", "Service provider code"), "171717")}</div>
           ${key("mpesa_public_key", tr("Chave pública (Public Key, texto longo em base64)", "Public key (long base64 text)"))}
           <p class="small muted">${tr("Onde encontrar: developer.mpesa.vm.co.mz → entra com a conta M-Pesa Business → a tua aplicação → API Key e Public Key. O código de serviço é o <i>short code</i> da tua conta Business. Sem taxas de intermediário: pagas só a tarifa da Vodacom. Para o B2C, a conta Business precisa do produto «Pagamentos em massa» activo.", "Where to find: developer.mpesa.vm.co.mz → sign in with the M-Pesa Business account → your app → API Key and Public Key. The service code is your Business short code. No middleman fees: you pay Vodacom's tariff only. For B2C, the Business account needs the “Mass payments” product enabled.")}</p>
+        </details>
+        <details class="gw-box" ${gw.netshop_enabled ? "open" : ""}><summary><b>NetShop</b> <small>M-Pesa · e-Mola · mKesh · B2C</small>${gw.netshop_enabled ? `<span class="badge st-approved">${tr("ligado", "on")}</span>` : ""}</summary>
+          <label class="switch"><input type="checkbox" name="netshop_enabled" ${gw.netshop_enabled ? "checked" : ""}><span>${tr("Ligar NetShop (cobrança no checkout)", "Enable NetShop (checkout collection)")}</span></label>
+          <label class="switch"><input type="checkbox" name="netshop_payouts" ${gw.netshop_payouts ? "checked" : ""}><span>${tr("Pagar levantamentos automaticamente (B2C M-Pesa e e-Mola) a partir do saldo NetShop", "Pay withdrawals automatically (B2C M-Pesa and e-Mola) from the NetShop balance")}</span></label>
+          <div class="two">${key("netshop_api_key", tr("API Key", "API key"), "ns_live_…")}${key("netshop_wallet_id", tr("Wallet ID (6 dígitos)", "Wallet ID (6 digits)"), "418207")}</div>
+          ${key("netshop_webhook_secret", tr("Segredo do webhook", "Webhook secret"))}
+          <p class="small muted">${tr("Webhook a configurar no painel NetShop:", "Webhook to set in the NetShop dashboard:")} <code class="gw-url">${esc(siteUrl())}api/netshop-webhook</code><br>${tr("Onde encontrar: netshop.co.mz → painel → Developers (API Key e Wallet ID). A API é 100% real (sem sandbox): testa com um valor pequeno. Mínimo 10 MT por cobrança.", "Where to find: netshop.co.mz → dashboard → Developers (API key and Wallet ID). The API is live only (no sandbox): test with a small amount. Minimum 10 MT per charge.")}</p>
+        </details>
+        <details class="gw-box" ${gw.imali_enabled ? "open" : ""}><summary><b>iMali Way</b> <small>Paytek · M-Pesa · e-Mola · mKesh</small>${gw.imali_enabled ? `<span class="badge st-approved">${tr("ligado", "on")}</span>` : ""}</summary>
+          <label class="switch"><input type="checkbox" name="imali_enabled" ${gw.imali_enabled ? "checked" : ""}><span>${tr("Ligar iMali Way (push C2B no checkout)", "Enable iMali Way (C2B push at checkout)")}</span></label>
+          <label>${tr("Base URL da API (das «Partner Specifications» da iMali; sandbox ou produção)", "API base URL (from iMali's Partner Specifications; sandbox or production)")}<input class="input mono" name="imali_base_url" type="url" placeholder="https://api.imaliway.co.mz/v1" value="${esc(typeof gw.imali_base_url === "string" ? gw.imali_base_url : "")}"></label>
+          <div class="two">${key("imali_api_key", "API Key")}${key("imali_client_id", "Client ID")}</div>
+          <div class="two">${key("imali_store_account", tr("Conta da loja (store account number)", "Store account number"))}${key("imali_webhook_secret", tr("Segredo do webhook", "Webhook secret"))}</div>
+          ${key("imali_public_key", tr("Chave pública da iMali (PEM, pode colar em uma linha)", "iMali public key (PEM, single line is fine)"))}
+          <p class="small muted">${tr("Webhook a configurar no painel iMali:", "Webhook to set in the iMali dashboard:")} <code class="gw-url">${esc(siteUrl())}api/imali-webhook</code><br>${tr("Onde encontrar: app.imaliway.co.mz → Dashboard → API (chaves separadas para sandbox e produção). Taxa anunciada 1,5%–4,5% por transacção, sem mensalidade.", "Where to find: app.imaliway.co.mz → Dashboard → API (separate sandbox and live keys). Advertised fee 1.5%–4.5% per transaction, no monthly fee.")}</p>
         </details>
         <details class="gw-box" ${gw.pagar_enabled ? "open" : ""}><summary><b>Pagar.co.mz</b> <small>M-Pesa · e-Mola</small>${gw.pagar_enabled ? `<span class="badge st-approved">${tr("ligado", "on")}</span>` : ""}</summary>
           <label class="switch"><input type="checkbox" name="pagar_enabled" ${gw.pagar_enabled ? "checked" : ""}><span>${tr("Ligar Pagar.co.mz", "Enable Pagar.co.mz")}</span></label>
@@ -640,7 +665,10 @@ async function definicoes(box, _q, alive) {
         api.saveSetting("payout_hold_days", Number(f.payout_hold_days || 0)),
         api.saveSetting("guarantee_days", Number(f.guarantee_days || 0)),
         api.saveSetting("min_withdrawal", Number(f.min_withdrawal || 0)),
-        api.saveSetting("gateway", { ...gw, mpesa_enabled: Boolean(f.mpesa_enabled), mpesa_live: Boolean(f.mpesa_live), mpesa_payouts: Boolean(f.mpesa_payouts), paysuite_enabled: Boolean(f.paysuite_enabled), pagar_enabled: Boolean(f.pagar_enabled), e2_enabled: Boolean(f.e2_enabled), paypal_enabled: Boolean(f.paypal_enabled), paypal_live: Boolean(f.paypal_live), order: String(f.gw_order || "mpesa,e2payments,pagar,paysuite").split(",") }),
+        api.saveSetting("gateway", { ...gw, mpesa_enabled: Boolean(f.mpesa_enabled), mpesa_live: Boolean(f.mpesa_live), mpesa_payouts: Boolean(f.mpesa_payouts),
+          netshop_enabled: Boolean(f.netshop_enabled), netshop_payouts: Boolean(f.netshop_payouts),
+          imali_enabled: Boolean(f.imali_enabled), imali_base_url: /^https:\/\/[^\s]+$/.test(String(f.imali_base_url || "").trim()) ? String(f.imali_base_url).trim().replace(/\/+$/, "") : "",
+          paysuite_enabled: Boolean(f.paysuite_enabled), pagar_enabled: Boolean(f.pagar_enabled), e2_enabled: Boolean(f.e2_enabled), paypal_enabled: Boolean(f.paypal_enabled), paypal_live: Boolean(f.paypal_live), order: String(f.gw_order || "mpesa,netshop,imali,e2payments,pagar,paysuite").split(",") }),
         api.saveSetting("turnstile_site_key", String(f.turnstile_site_key || "").trim()),
         api.saveSetting("tracking", { meta_pixel: String(f.px_meta || "").replace(/\D/g, "").slice(0, 20), tiktok_pixel: String(f.px_tiktok || "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 30), ga4: /^G-[A-Z0-9]{4,20}$/i.test(String(f.px_ga || "").trim()) ? String(f.px_ga).trim().toUpperCase() : "" }),
         api.saveSetting("google_login", Boolean(f.google_login)),
@@ -655,7 +683,7 @@ async function definicoes(box, _q, alive) {
         await api.setGatewaySecret("anthropic_api_key", f.anthropic_api_key.trim()); e.target.anthropic_api_key.value = "";
       }
       if (f.resend_api_key && f.resend_api_key.trim()) { await api.setGatewaySecret("resend_api_key", f.resend_api_key.trim()); e.target.resend_api_key.value = ""; }
-      const GW_KEYS = ["paysuite_token", "pagar_api_key", "pagar_signing_secret", "pagar_webhook_secret", "e2_client_id", "e2_client_secret", "e2_mpesa_wallet", "e2_emola_wallet", "mpesa_api_key", "mpesa_public_key", "mpesa_service_code", "paypal_client_id", "paypal_secret"];
+      const GW_KEYS = ["paysuite_token", "pagar_api_key", "pagar_signing_secret", "pagar_webhook_secret", "e2_client_id", "e2_client_secret", "e2_mpesa_wallet", "e2_emola_wallet", "mpesa_api_key", "mpesa_public_key", "mpesa_service_code", "netshop_api_key", "netshop_wallet_id", "netshop_webhook_secret", "imali_api_key", "imali_public_key", "imali_client_id", "imali_store_account", "imali_webhook_secret", "paypal_client_id", "paypal_secret"];
       let gwSaved = false;
       for (const k of GW_KEYS) {
         let v = String(f[k] || "").trim();

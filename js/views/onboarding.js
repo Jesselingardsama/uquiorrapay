@@ -1,7 +1,7 @@
 // Boas-vindas «Vamos preparar a tua conta» — assistente de 4 passos (uma pergunta de cada vez), aparece uma vez
-import { api } from "../api.js?v=202610092030";
-import { state, tr, esc, photo, PHOTOS, brandHTML, isAdmin, toast, ICON } from "../ui.js?v=202610092030";
-import { go } from "../app.js?v=202610092030";
+import { api } from "../api.js?v=202610092130";
+import { state, tr, esc, photo, PHOTOS, brandHTML, isAdmin, toast, ICON } from "../ui.js?v=202610092130";
+import { go } from "../app.js?v=202610092130";
 
 export const OB = () => ({
   source: [["instagram", "Instagram", "📸"], ["facebook", "Facebook", "👍"], ["tiktok", "TikTok", "🎵"], ["whatsapp", "WhatsApp", "💬"], ["google", tr("Google / Pesquisa", "Google / Search"), "🔎"], ["youtube", "YouTube", "▶️"], ["amigo", tr("Indicação de amigo", "Friend referral"), "🤝"], ["outro", tr("Outro", "Other"), "✨"]],

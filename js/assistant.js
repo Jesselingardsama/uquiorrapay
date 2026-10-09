@@ -1,7 +1,7 @@
 // Assistente com IA (canto inferior direito): responde a dúvidas e recomenda produtos à venda.
 // Só aparece quando o admin liga «Respostas por IA» nas Definições.
-import { api } from "./api.js?v=202610092030";
-import { state, tr, esc } from "./ui.js?v=202610092030";
+import { api } from "./api.js?v=202610092130";
+import { state, tr, esc } from "./ui.js?v=202610092130";
 
 const KEY = "uq_ai_chat";
 const ICON_AI = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/><path d="M12 8.5l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z" fill="currentColor"/></svg>`;

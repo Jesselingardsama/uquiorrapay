@@ -1,4 +1,4 @@
-// Cloudflare Pages (modo avançado): encaminha o webhook da Pagar.co.mz para o servidor (Supabase),
+// Cloudflare Pages (modo avançado): encaminha os webhooks dos fornecedores de pagamento (Pagar.co.mz, NetShop, iMali Way) para o servidor (Supabase),
 // para o webhook ficar no mesmo domínio do site. Tudo o resto é servido normalmente.
 // Provas de domínio da Pagar.co.mz: os tokens vêm da Administração (Definições → Pagar.co.mz → tokens de verificação),
 // por isso, se a Pagar pedir um token novo, basta colá-lo lá — não é preciso publicar o site de novo.
@@ -21,7 +21,12 @@ async function verificationText() {
   }
   return [...new Set([...cache.tokens, ...FIXED_TOKENS])].join("\n") + "\n";
 }
-const TARGET = "https://dzwbccqqvcmqmmqtdgzw.supabase.co/functions/v1/gateways?action=webhook&p=pagar";
+const TARGET_BASE = "https://dzwbccqqvcmqmmqtdgzw.supabase.co/functions/v1/gateways?action=webhook";
+const WEBHOOKS = {
+  "/api/pagar-webhook": { p: "pagar", headers: ["Pagar-Signature", "Pagar-Event-Id", "Pagar-Event-Type", "User-Agent"] },
+  "/api/netshop-webhook": { p: "netshop", headers: ["X-NetShop-Signature", "X-NetShop-Event", "User-Agent"] },
+  "/api/imali-webhook": { p: "imali", headers: ["X-Webhook-Signature", "X-Webhook-Timestamp", "X-Client-ID", "User-Agent"] },
+};
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -53,15 +58,17 @@ export default {
       const dest = ok ? `/#/pagamento/${o}${url.searchParams.get("cancel") ? "?cancelado=1" : ""}` : "/";
       return new Response(null, { status: 302, headers: { Location: dest, "Cache-Control": "no-store" } });
     }
-    if (url.pathname === "/api/pagar-webhook") {
-      if (request.method === "GET") return new Response(JSON.stringify({ ok: true, service: "pagar-webhook" }), { headers: { "Content-Type": "application/json" } });
+    // Webhooks dos fornecedores de pagamento (ficam no domínio do site e são reencaminhados para o servidor)
+    const hook = WEBHOOKS[url.pathname];
+    if (hook) {
+      if (request.method === "GET") return new Response(JSON.stringify({ ok: true, service: hook.p + "-webhook" }), { headers: { "Content-Type": "application/json" } });
       if (request.method !== "POST") return new Response("Method not allowed", { status: 405 });
       const body = await request.text();
       const headers = new Headers({ "Content-Type": request.headers.get("Content-Type") || "application/json" });
-      for (const h of ["Pagar-Signature", "Pagar-Event-Id", "Pagar-Event-Type", "User-Agent"]) {
+      for (const h of hook.headers) {
         const v = request.headers.get(h); if (v) headers.set(h, v);
       }
-      const r = await fetch(TARGET, { method: "POST", headers, body });
+      const r = await fetch(`${TARGET_BASE}&p=${hook.p}`, { method: "POST", headers, body });
       return new Response(await r.text(), { status: r.status, headers: { "Content-Type": "application/json" } });
     }
     return env.ASSETS.fetch(request);

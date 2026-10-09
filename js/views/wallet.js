@@ -1,7 +1,7 @@
 // Carteira (saldo e levantamentos) e programa de afiliados.
-import { api } from "../api.js?v=202610092030";
-import { state, tr, esc, mzn, date, toast, emptyState, statusBadge, methodLabel, coverHTML, priceHTML, catLabel, typeLabel, copyText, dashShell, ICON, photo, PHOTOS, siteUrl } from "../ui.js?v=202610092030";
-import { rerender } from "../app.js?v=202610092030";
+import { api } from "../api.js?v=202610092130";
+import { state, tr, esc, mzn, date, toast, emptyState, statusBadge, methodLabel, coverHTML, priceHTML, catLabel, typeLabel, copyText, dashShell, ICON, photo, PHOTOS, siteUrl } from "../ui.js?v=202610092130";
+import { rerender } from "../app.js?v=202610092130";
 
 function busy(btn, on) { if (btn) { btn.disabled = on; btn.classList.toggle("busy", on); } }
 const siteBase = () => siteUrl();

@@ -1,9 +1,9 @@
 // Conta: entrar, registar, perfil, checkout, os meus cursos, aulas e pedido para ser produtor.
-import { api } from "../api.js?v=202610092030";
-import { initiateCheckout, purchase, registration } from "../track.js?v=202610092030";
-import { state, tr, esc, mzn, money, priceHTML, offerPriceHTML, hasStrike, cleanBonuses, coverHTML, videoEmbed, toast, modal, emptyState, errorBox, statusBadge, methodLabel, date, ICON, isProducer, isAdmin, loading, dashShell, getRef, gDays, supportOk, brandHTML, copyText, CONFIG, intlPrice, usdFmt, usdRate, supportWa, hasGuarantee, TYPES, typeLabel } from "../ui.js?v=202610092030";
-import { go, refreshUser, rerender } from "../app.js?v=202610092030";
-import { mountCaptcha, captchaOn } from "../captcha.js?v=202610092030";
+import { api } from "../api.js?v=202610092130";
+import { initiateCheckout, purchase, registration } from "../track.js?v=202610092130";
+import { state, tr, esc, mzn, money, priceHTML, offerPriceHTML, hasStrike, cleanBonuses, coverHTML, videoEmbed, toast, modal, emptyState, errorBox, statusBadge, methodLabel, date, ICON, isProducer, isAdmin, loading, dashShell, getRef, gDays, supportOk, brandHTML, copyText, CONFIG, intlPrice, usdFmt, usdRate, supportWa, hasGuarantee, TYPES, typeLabel } from "../ui.js?v=202610092130";
+import { go, refreshUser, rerender } from "../app.js?v=202610092130";
+import { mountCaptcha, captchaOn } from "../captcha.js?v=202610092130";
 const needCaptcha = () => toast(tr("Confirma que não és um robô.", "Please confirm you're not a robot."), "err");
 
 const afterLogin = () => {
@@ -261,7 +261,7 @@ const BACK = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-
 const PAY_IC = { paypal: ["P", "#1F4FA3"] };
 const CARD_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 10h19M6.5 15h4"/></svg>`;
 const payIcon = (m) => {
-  if (m === "mpesa" || m === "emola") return `<span class="pm-ic logo"><img src="img/pay/${m}.png?v=202610092030" alt="${m === "mpesa" ? "M-Pesa" : "e-Mola"}"></span>`;
+  if (m === "mpesa" || m === "emola") return `<span class="pm-ic logo"><img src="img/pay/${m}.png?v=202610092130" alt="${m === "mpesa" ? "M-Pesa" : "e-Mola"}"></span>`;
   if (m === "card" || m === "card_mz") return `<span class="pm-ic card">${CARD_SVG}</span>`;
   const [l, c] = PAY_IC[m] || ["•", "#0F5132"]; return `<span class="pm-ic" style="--c:${c}">${l}</span>`;
 };

@@ -1,10 +1,10 @@
 // Área interna do produtor (estrutura inspirada na Hotmart):
 // Início (painel), Os meus produtos, Gestão de vendas, Criar produto (3 passos) e página do produto com lista de passos.
-import { api } from "../api.js?v=202610092030";
-import { state, tr, esc, mzn, siteUrl, usdRate, coverHTML, cleanBonuses, statusBadge, date, toast, modal, emptyState, ICON, isAdmin, isProducer, methodLabel, dashShell, copyText, TYPES, typeLabel, unitLabel, catLabel, catOptions, trackUpload, supportOk, photo, PHOTOS, CONFIG, isSponsored, donutSVG, areaSVG, gaugeSVG, dailySeries, deltaHTML, pctFee, gDays } from "../ui.js?v=202610092030";
-import { affLink } from "./wallet.js?v=202610092030";
-import { pushCardHTML, wirePush } from "../push.js?v=202610092030";
-import { go, refreshUser, rerender } from "../app.js?v=202610092030";
+import { api } from "../api.js?v=202610092130";
+import { state, tr, esc, mzn, siteUrl, usdRate, coverHTML, cleanBonuses, statusBadge, date, toast, modal, emptyState, ICON, isAdmin, isProducer, methodLabel, dashShell, copyText, TYPES, typeLabel, unitLabel, catLabel, catOptions, trackUpload, supportOk, photo, PHOTOS, CONFIG, isSponsored, donutSVG, areaSVG, gaugeSVG, dailySeries, deltaHTML, pctFee, gDays } from "../ui.js?v=202610092130";
+import { affLink } from "./wallet.js?v=202610092130";
+import { pushCardHTML, wirePush } from "../push.js?v=202610092130";
+import { go, refreshUser, rerender } from "../app.js?v=202610092130";
 
 // Descrição do produto: máximo 500 caracteres (também imposto na base de dados)
 const DESC_MAX = 500;
