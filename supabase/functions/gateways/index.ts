@@ -428,21 +428,31 @@ Deno.serve(async (req) => {
       return json({ enabled: list.length > 0, providers: list, paypal: await paypalOn() });
     }
     let body: any = {}; try { body = raw ? JSON.parse(raw) : {}; } catch { body = {}; }
-    const jwt = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
-    const { data: u } = jwt ? await admin.auth.getUser(jwt) : { data: null as any };
-    if (!u?.user) return json({ error: "Sessão inválida" }, 401);
+    // Quem pede: a sessão do utilizador ou, numa chamada interna da função «api» (segredo partilhado), o comprador indicado
+    let uid = "";
+    const internal = req.headers.get("x-internal-secret") || "";
+    if (internal && UUID.test(String(body.as_user || ""))) {
+      const ok = await admin.rpc("notify_secret_ok", { _s: internal });
+      if (ok.data) uid = String(body.as_user);
+    }
+    if (!uid) {
+      const jwt = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
+      const { data: u } = jwt ? await admin.auth.getUser(jwt) : { data: null as any };
+      if (!u?.user) return json({ error: "Sessão inválida" }, 401);
+      uid = u.user.id;
+    }
     if (action === "plan_start" || action === "plan_poll") {
       if (!UUID.test(String(body.plan_payment_id || ""))) return json({ error: "Pedido inválido" }, 400);
       const { data: pp } = await admin.from("plan_payments").select("*").eq("id", body.plan_payment_id).maybeSingle();
-      if (!pp || pp.user_id !== u.user.id) return json({ error: "Pedido não encontrado" }, 404);
+      if (!pp || pp.user_id !== uid) return json({ error: "Pedido não encontrado" }, 404);
       if (action === "plan_poll") return json(await planPoll(pp));
-      const { count } = await admin.from("plan_payments").select("id", { count: "exact", head: true }).eq("user_id", u.user.id).eq("mode", "auto").gte("created_at", new Date(Date.now() - 3600_000).toISOString());
+      const { count } = await admin.from("plan_payments").select("id", { count: "exact", head: true }).eq("user_id", uid).eq("mode", "auto").gte("created_at", new Date(Date.now() - 3600_000).toISOString());
       if ((count || 0) > 8) return json({ error: "Muitas tentativas. Espera um pouco ou usa o pagamento manual." }, 429);
       return json(await planStart(pp));
     }
     if (!UUID.test(String(body.order_id || ""))) return json({ error: "Pedido inválido" }, 400);
     const { data: order } = await admin.from("orders").select("id,buyer_id,status,amount_mzn,pay_amount,pay_currency,reference,payment_method,payer_phone,course_id,gateway,gateway_payment_id, courses!orders_course_id_fkey(title)").eq("id", body.order_id).maybeSingle();
-    if (!order || order.buyer_id !== u.user.id) return json({ error: "Pedido não encontrado" }, 404);
+    if (!order || order.buyer_id !== uid) return json({ error: "Pedido não encontrado" }, 404);
 
     if (action === "start") {
       if (order.status !== "pending") return json({ error: "Este pedido já não está pendente" }, 400);

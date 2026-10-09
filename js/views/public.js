@@ -2,7 +2,7 @@
 import { api } from "../api.js?v=202610091700";
 import { supportBox } from "./account.js?v=202610091700";
 import { viewContent } from "../track.js?v=202610091700";
-import { state, tr, esc, mzn, money, courseCard, coverHTML, priceHTML, offerPriceHTML, hasStrike, cleanBonuses, videoEmbed, langLabel, ICON, emptyState, isAdmin, isProducer, toast, photo, PHOTOS, catPhoto, catLabel, catOptions, supportOk, saveRef, getRef, gDays, TYPES, typeLabel, unitLabel, CONFIG, intlPrice, usdFmt, curPrice, usdRate, isSponsored, supportWa, supportWaText, hasGuarantee } from "../ui.js?v=202610091700";
+import { state, tr, esc, mzn, money, courseCard, coverHTML, priceHTML, offerPriceHTML, hasStrike, cleanBonuses, videoEmbed, langLabel, ICON, emptyState, isAdmin, isProducer, toast, photo, PHOTOS, catPhoto, catLabel, catOptions, supportOk, saveRef, getRef, gDays, TYPES, typeLabel, unitLabel, CONFIG, intlPrice, usdFmt, curPrice, usdRate, isSponsored, supportWa, supportWaText, hasGuarantee, siteUrl } from "../ui.js?v=202610091700";
 
 
 // ---------- Início (modelo escolhido pelo utilizador) ----------
@@ -562,6 +562,38 @@ export async function contact(main) {
       ${wa ? `<a class="panel contact" href="https://wa.me/${esc(wa.replace(/\D/g, ""))}" target="_blank" rel="noopener"><b>WhatsApp</b><span>${esc(wa)}</span></a>` : ""}
     </div>
     <p class="muted">${tr("Segunda a sexta, 8h–17h (GMT+2). Respondemos até 24 horas úteis.", "Monday to Friday, 8am–5pm (GMT+2). We reply within 1 business day.")}</p>`);
+}
+
+// Documentação da API pública (v1)
+export async function apiDocs(main) {
+  const base = `${siteUrl()}api/v1`;
+  const pre = (s) => `<pre><code>${esc(s)}</code></pre>`;
+  const ep = (m, p, d) => `<div class="api-ep"><span class="api-m ${m.toLowerCase()}">${m}</span><code>${esc(p)}</code></div><p>${d}</p>`;
+  main.innerHTML = `<section class="page container narrow api-doc">
+    <h1 class="page-title">${tr("API Uquiorrapay", "Uquiorrapay API")} <span class="soon-tag">v1</span></h1>
+    <div class="prose panel">
+      <p>${tr("Com a API ligas a Uquiorrapay ao teu site, app ou automações (Zapier, Make, n8n): crias pedidos com confirmação M-Pesa/e-Mola no telemóvel do cliente, consultas as tuas vendas e recebes webhooks assinados quando um pagamento é confirmado. As chaves criam-se no painel do produtor, em", "With the API you connect Uquiorrapay to your site, app or automations (Zapier, Make, n8n): create orders with M-Pesa/e-Mola phone confirmation, read your sales and receive signed webhooks when a payment is confirmed. Keys are created in the creator dashboard, under")} <a href="#/produtor/api">${tr("Integrações → API e webhooks", "Integrations → API & webhooks")}</a>.</p>
+      <h2>${tr("Autenticação", "Authentication")}</h2>
+      <p>${tr("Todos os pedidos levam a chave no cabeçalho", "Every request carries the key in the header")} <code>Authorization</code>. ${tr("Endereço base", "Base URL")}: <code>${esc(base)}</code>. ${tr("Limite: 120 pedidos por minuto por chave. Respostas e erros em JSON", "Limit: 120 requests per minute per key. JSON responses and errors")} (<code>{ "error": { "code", "message" } }</code>).</p>
+      ${pre(`curl ${base}/me \\\n  -H "Authorization: Bearer uq_live_a1b2c3…"`)}
+      <h2>Endpoints</h2>
+      ${ep("GET", "/v1/me", tr("Confirma a chave e devolve o teu identificador, nome e email.", "Validates the key and returns your id, name and email."))}
+      ${ep("GET", "/v1/products", tr("Os teus produtos, com preço, estado, link de checkout e página de venda.", "Your products with price, status, checkout link and sales page."))}
+      ${ep("POST", "/v1/orders", tr("Cria um pedido para um cliente. Com <code>payment_method</code> M-Pesa ou e-Mola, o cliente recebe logo o pedido de PIN no telemóvel (como na API da Pagar.co.mz). Com <code>manual</code>, devolve o link de checkout para o cliente pagar no site. O email do cliente é obrigatório: é com ele que acede ao produto na área de membros (contas novas recebem um email para definir a palavra-passe).", "Creates an order for a customer. With <code>payment_method</code> M-Pesa or e-Mola the customer immediately gets the PIN prompt on their phone (like the Pagar.co.mz API). With <code>manual</code> it returns the checkout link. The customer email is required: it's how they access the product (new accounts get an email to set a password)."))}
+      ${pre(`curl -X POST ${base}/orders \\\n  -H "Authorization: Bearer uq_live_a1b2c3…" \\\n  -H "Content-Type: application/json" \\\n  -d '{\n    "product_id": "b14a6084-5c6a-4369-9d1a-01dd67d78ec5",\n    "payment_method": "mpesa",\n    "customer": { "name": "Ana Macamo", "email": "ana@exemplo.com", "phone": "841234567" },\n    "coupon_code": "PROMO20"\n  }'`)}
+      ${pre(`{\n  "data": {\n    "order": { "id": "…", "reference": "UQ3F9A2B1C", "status": "pending", "amount_mzn": 500, "payment_method": "mpesa",\n               "product": { "id": "…", "title": "Curso de Excel", "type": "curso" },\n               "customer": { "name": "Ana Macamo", "email": "ana@exemplo.com", "phone": "841234567" },\n               "checkout_url": "${esc(siteUrl())}#/checkout/…", "payment": { "provider": "pagar", "status": "pending" } },\n    "payment": { "mode": "push", "provider": "pagar" }\n  }\n}`)}
+      ${ep("GET", "/v1/orders/{id}", tr("Um pedido com o estado actual (<code>pending</code>, <code>paid</code>, <code>cancelled</code>, <code>refunded</code>) e o estado da última tentativa de pagamento. Consulta de 5 em 5 segundos enquanto está pendente, ou usa webhooks.", "One order with its status (<code>pending</code>, <code>paid</code>, <code>cancelled</code>, <code>refunded</code>) and the latest payment attempt. Poll every 5 seconds while pending, or use webhooks."))}
+      ${ep("POST", "/v1/orders/{id}/push", tr("Volta a enviar o pedido de PIN ao telemóvel do cliente (pedidos pendentes M-Pesa/e-Mola).", "Re-sends the PIN prompt to the customer's phone (pending M-Pesa/e-Mola orders)."))}
+      ${ep("GET", "/v1/orders?status=paid&limit=50&since=2026-10-01&product_id=…", tr("As tuas vendas, da mais recente para a mais antiga (máximo 100 por pedido).", "Your sales, newest first (max 100 per request)."))}
+      <h2>Webhooks</h2>
+      <p>${tr("Regista um endereço HTTPS no painel. Enviamos um POST em JSON para os eventos", "Register an HTTPS address in the dashboard. We POST JSON for the events")} <code>order.paid</code>, <code>order.refunded</code> ${tr("e", "and")} <code>order.cancelled</code>, ${tr("com os cabeçalhos", "with the headers")} <code>Uquiorrapay-Event</code>, <code>Uquiorrapay-Event-Id</code> ${tr("e", "and")} <code>Uquiorrapay-Signature</code>. ${tr("Responde com um código 2xx; caso contrário repetimos até 3 vezes.", "Reply with a 2xx code; otherwise we retry up to 3 times.")}</p>
+      ${pre(`{\n  "id": "evt_…", "event": "order.paid", "created_at": "2026-10-09T15:00:00Z",\n  "data": { "order": { "id": "…", "reference": "UQ3F9A2B1C", "status": "paid", "amount_mzn": 500, "producer_net_mzn": 452.5, "paid_at": "…", "customer": { … }, "product": { … } } }\n}`)}
+      <p>${tr("A assinatura é", "The signature is")} <code>t=&lt;unix&gt;,v1=&lt;hmac&gt;</code>, ${tr("em que <code>hmac</code> é HMAC-SHA256 com o segredo do webhook sobre a string", "where <code>hmac</code> is HMAC-SHA256 with the webhook secret over the string")} <code>&lt;t&gt;.&lt;corpo do pedido&gt;</code>. ${tr("Exemplo em Node.js:", "Node.js example:")}</p>
+      ${pre(`const crypto = require("crypto");\nfunction verificar(corpoRaw, cabecalho, segredo) {\n  const t = /t=(\\d+)/.exec(cabecalho)?.[1], v1 = /v1=([0-9a-f]+)/.exec(cabecalho)?.[1];\n  if (!t || !v1 || Math.abs(Date.now() / 1000 - Number(t)) > 300) return false; // 5 minutos\n  const esperado = crypto.createHmac("sha256", segredo).update(t + "." + corpoRaw).digest("hex");\n  return esperado.length === v1.length && crypto.timingSafeEqual(Buffer.from(esperado), Buffer.from(v1));\n}`)}
+      <h2>${tr("Erros", "Errors")}</h2>
+      <ul><li><code>401 unauthorized</code> — ${tr("chave em falta, inválida ou revogada", "missing, invalid or revoked key")}</li><li><code>400 invalid_customer / invalid_phone / order_error</code> — ${tr("dados do pedido inválidos (a mensagem explica)", "invalid order data (the message explains)")}</li><li><code>404 not_found</code> — ${tr("produto ou pedido que não é teu", "product or order that isn't yours")}</li><li><code>409 not_on_sale / not_pending</code> — ${tr("produto ainda não aprovado, ou pedido já não pendente", "product not approved yet, or order no longer pending")}</li><li><code>429 rate_limited</code> — ${tr("mais de 120 pedidos por minuto", "over 120 requests per minute")}</li></ul>
+      <p class="muted small">${tr("Regras de negócio iguais às do checkout: cupões, afiliados, comissão da plataforma e garantia aplicam-se da mesma forma. Dúvidas:", "Same business rules as the checkout: coupons, affiliates, platform fee and guarantee apply the same way. Questions:")} <a href="#/contacto">${tr("Contacto", "Contact")}</a>.</p>
+    </div></section>`;
 }
 
 // SaaS (plataforma própria para cada produtor): em desenvolvimento

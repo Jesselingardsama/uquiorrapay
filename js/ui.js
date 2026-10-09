@@ -274,6 +274,10 @@ export function appMenu() {
       ["vendas", "#/produtor/vendas", tr("Gestão de vendas", "Sales management")],
       ["af-vendas", "#/afiliados?t=vendas", tr("Vendas como afiliado", "Affiliate sales")],
     ] },
+    { g: "integracoes", ic: ICON.bolt, label: tr("Integrações", "Integrations"), items: [
+      ["api", "#/produtor/api", tr("API e webhooks", "API & webhooks")],
+      ["api-docs", "#/api-docs", tr("Documentação da API", "API docs")],
+    ] },
     { g: "carteira", ic: ICON.wallet, label: tr("Carteira", "Wallet"), items: [
       ["carteira", "#/carteira", tr("Saldo", "Balance")],
       ["extrato", "#/carteira/extrato", tr("Extrato", "Statement")],
@@ -298,6 +302,7 @@ export function activeKey() {
   if (path === "/painel") return "painel";
   if (path === "/produtor/vendas") return "vendas";
   if (path === "/produtor/curso/novo") return "criar";
+  if (path === "/produtor/api") return "api";
   if (path.startsWith("/produtor")) return "produtos";
   if (path === "/meus-cursos") return "cursos";
   if (path === "/carteira") return "carteira";

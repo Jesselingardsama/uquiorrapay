@@ -639,6 +639,33 @@ export const api = {
     await this.saveSetting("android_apk", value);
     return value;
   },
+  // ---------- API pública: chaves e webhooks do produtor ----------
+  async apiKeys() {
+    return ok(await sb.from("api_keys").select("id,name,prefix,created_at,last_used_at,revoked_at").order("created_at", { ascending: false }));
+  },
+  async apiKeyCreate(name) {
+    return ok(await sb.rpc("api_key_create", { _name: name }));
+  },
+  async apiKeyRevoke(id) {
+    return ok(await sb.rpc("api_key_revoke", { _id: id }));
+  },
+  async apiWebhooks() {
+    return ok(await sb.from("api_webhooks").select("*").order("created_at", { ascending: false }));
+  },
+  async apiWebhookAdd(url, events) {
+    const uid = (await this.session())?.user?.id;
+    return ok(await sb.from("api_webhooks").insert({ user_id: uid, url, events }).select().single());
+  },
+  async apiWebhookUpdate(id, fields) {
+    return ok(await sb.from("api_webhooks").update(fields).eq("id", id).select().single());
+  },
+  async apiWebhookDelete(id) {
+    return ok(await sb.from("api_webhooks").delete().eq("id", id));
+  },
+  async apiDeliveries() {
+    return ok(await sb.from("api_webhook_deliveries").select("*").order("created_at", { ascending: false }).limit(50));
+  },
+
   // ---------- Notificações push (vendas) ----------
   async savePushSub(sub, ua) {
     const j = sub.toJSON ? sub.toJSON() : sub;
