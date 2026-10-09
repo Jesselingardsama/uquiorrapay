@@ -409,10 +409,11 @@ async function utilizadores(box, _q, alive) {
       return;
     }
     const b = e.target.closest("[data-rec]"); if (!b) return;
-    if (!(await modal({ title: tr(`Gerar link de nova senha para ${b.dataset.name || "este utilizador"}?`, "Generate a password link?"), body: tr("Só envies o link ao próprio dono da conta (confirma pelo número de telefone).", "Only send it to the account owner (check their phone number)."), confirm: tr("Gerar link", "Generate link") }))) return;
+    if (!(await modal({ title: tr(`Nova palavra-passe para ${b.dataset.name || "este utilizador"}?`, "New password for this user?"), body: tr("Contas com email recebem o link directamente por email. Só nas contas criadas por telefone é que o link te é mostrado, para o enviares ao dono da conta (confirma pelo número).", "Accounts with an email get the link by email. Only phone-created accounts show you the link, to send to the account owner (check the number)."), confirm: tr("Continuar", "Continue") }))) return;
     b.disabled = true;
     try {
       const r = await api.recoveryLink(b.dataset.rec);
+      if (r.sent) { toast(tr(`Email de nova palavra-passe enviado para ${r.email}.`, `Password email sent to ${r.email}.`)); b.disabled = false; return; }
       const wa = String(b.dataset.phone || "").replace(/\D/g, "");
       const msg = tr(`Olá! Para criares uma nova palavra-passe na Uquiorrapay, abre este link (válido por pouco tempo):\n${r.link}`, `Hi! To set a new Uquiorrapay password open this link:\n${r.link}`);
       const wrap = document.createElement("div");

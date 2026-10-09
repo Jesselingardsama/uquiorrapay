@@ -311,6 +311,8 @@ async function start(order: any, req: Request, returnUrl: string) {
   throw new UserError(sandboxMsg || configMsg || "O pagamento automático está indisponível de momento.");
 }
 
+// Mensagem para o cliente: o motivo técnico (chave do fornecedor inválida) fica só para a administração
+const friendly = (err: string | null | undefined) => (err === BAD_KEY ? "O pagamento automático está indisponível de momento. Paga pelo método manual." : err ?? null);
 async function poll(order: any) {
   if (order.status === "paid") return { status: "paid" };
   if (order.payment_method === "paypal") return await paypalSync(order);
@@ -324,7 +326,7 @@ async function poll(order: any) {
     await admin.from("payment_attempts").update({ status: "failed", error: "Tempo esgotado", updated_at: new Date().toISOString() }).eq("id", at.id).eq("status", "pending");
     return { status: "failed", provider: at.provider, error: "Tempo esgotado. Tenta de novo." };
   }
-  return { status: at.status, provider: at.provider, error: at.error };
+  return { status: at.status, provider: at.provider, error: friendly(at.error) };
 }
 
 

@@ -528,7 +528,7 @@ export async function privacy(main) {
   textPage(main, tr("Política de Privacidade", "Privacy Policy"), tr(`
     <ul>
     <li><b>Dados que recolhemos:</b> nome, email, país, número de telefone, cursos comprados, progresso nas aulas e histórico de pedidos.</li>
-    <li><b>Verificação de identidade:</b> para quem vende e levanta dinheiro, guardamos o nome, tipo e número do documento, data de nascimento, morada e as fotografias do documento e da selfie. Estes dados ficam numa área privada, só a equipa de verificação lhes acede, e são usados apenas para segurança, prevenção de fraude e cumprimento legal.</li>
+    <li><b>Verificação de identidade:</b> para quem vende e levanta dinheiro, guardamos o nome, tipo e número do documento, data de nascimento, morada e as fotografias do documento e da selfie. Estes dados ficam numa área privada, só a equipa de verificação lhes acede, e são usados apenas para segurança, prevenção de fraude e cumprimento legal. As imagens do documento e a selfie são apagadas automaticamente 30 dias depois de a verificação ser aprovada ou rejeitada; fica só o resultado (nome, tipo e número do documento e datas).</li>
     <li><b>Dados que não guardamos:</b> PINs, senhas de carteira móvel ou dados completos de cartão.</li>
     <li><b>Para que usamos:</b> criar e gerir a tua conta, processar compras, dar acesso aos cursos, enviar emails sobre a tua conta e melhorar a plataforma.</li>
     <li><b>Com quem partilhamos:</b> com parceiros de pagamento (para processar a compra), com o produtor do curso que compraste e com fornecedores técnicos que alojam o site. Não vendemos os teus dados.</li>
@@ -539,7 +539,7 @@ export async function privacy(main) {
     </ul>`, `
     <ul>
     <li><b>Data we collect:</b> name, email, country, phone number, courses purchased, lesson progress and order history.</li>
-    <li><b>Identity verification:</b> for sellers who withdraw money we keep name, document type and number, date of birth, address and the document and selfie photos — stored privately, accessible only to the verification team, and used only for security, fraud prevention and legal compliance.</li>
+    <li><b>Identity verification:</b> for sellers who withdraw money we keep name, document type and number, date of birth, address and the document and selfie photos — stored privately, accessible only to the verification team, and used only for security, fraud prevention and legal compliance. Document images and the selfie are deleted automatically 30 days after the verification is approved or rejected; only the outcome is kept (name, document type and number, dates).</li>
     <li><b>Data we don't store:</b> PINs, mobile wallet passwords or full card details.</li>
     <li><b>How we use it:</b> to create and manage your account, process purchases, give you course access, email you about your account and improve the platform.</li>
     <li><b>Who we share it with:</b> payment partners (to process the purchase), the producer of a course you bought and technical providers that host the site. We do not sell your data.</li>

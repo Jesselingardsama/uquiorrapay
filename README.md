@@ -24,12 +24,15 @@ A pasta `supabase/` guarda cópias do que está publicado no projecto Supabase, 
 | Caminho | O que é |
 | --- | --- |
 | `supabase/functions/gateways/index.ts` | Edge Function dos pagamentos automáticos (Pagar.co.mz, e2Payments, PaySuite, PayPal) |
+| `supabase/functions/admin-users/index.ts` | Ferramentas de administração (nova palavra-passe: email ao utilizador; link só para contas de telefone) |
+| `supabase/functions/kyc-cleanup/index.ts` | Retenção KYC: apaga as imagens 30 dias depois da decisão (cron diário) |
 | `supabase/migrations/*.sql` | Migrações aplicadas à base de dados (tabelas, triggers e funções RPC) |
 
 Regras de negócio relevantes:
 
 - **Saque na hora:** o valor de cada venda fica disponível de imediato na carteira do produtor. Só fica retido (pelos «dias de garantia» das Definições) nos produtos em que o produtor activou a **garantia ao comprador**.
 - **Comissão da plataforma:** definida em Administração → Definições (`commission_pct`, actualmente 9,5%).
+- **Segurança:** administração só com 2FA activo; funções e tabelas sensíveis sem acesso anónimo; admin atribuído manualmente em `user_roles`.
 - **Order bump, upsell e downsell:** configurados pelo produtor em cada produto (secção «Order bump, upsell e downsell»). O order bump é pago junto com o produto principal; o upsell/downsell aparecem depois do pagamento confirmado e na área de membros.
 
 ## Publicar no Cloudflare Pages
