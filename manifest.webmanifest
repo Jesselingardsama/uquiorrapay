@@ -1,0 +1,26 @@
+{
+  "id": "/",
+  "name": "Uquiorrapay — Vende e compra produtos digitais",
+  "short_name": "Uquiorrapay",
+  "description": "Marketplace de cursos, ebooks e templates. Vende o que sabes e aprende o que precisas.",
+  "lang": "pt",
+  "dir": "ltr",
+  "start_url": "/?source=app",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0A3A24",
+  "theme_color": "#0A3A24",
+  "categories": ["education", "shopping", "business"],
+  "icons": [
+    { "src": "/img/app/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/img/app/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/img/app/maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/img/app/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Ver produtos", "short_name": "Produtos", "url": "/#/cursos", "icons": [{ "src": "/img/app/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Os meus cursos", "short_name": "Os meus cursos", "url": "/#/meus-cursos", "icons": [{ "src": "/img/app/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Criar produto", "short_name": "Vender", "url": "/#/produtor/curso/novo", "icons": [{ "src": "/img/app/icon-192.png", "sizes": "192x192" }] }
+  ]
+}

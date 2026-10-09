@@ -1,0 +1,11 @@
+# Dependências e ferramentas locais
+node_modules/
+.wrangler/
+.dev.vars
+
+# Sistema operativo / editores
+.DS_Store
+Thumbs.db
+*.log
+.vscode/
+.idea/
