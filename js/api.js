@@ -331,7 +331,7 @@ export const api = {
     return ok(await sb.from("orders").insert({ course_id, payment_method, payer_phone, coupon_code, affiliate_code, bump_course_id, offer_kind, offer_from }).select("*").single());
   },
   async myOrders(uid) {
-    return ok(await sb.from("orders").select("*, courses(title)").eq("buyer_id", uid).order("created_at", { ascending: false }));
+    return ok(await sb.from("orders").select("*, courses!orders_course_id_fkey(title)").eq("buyer_id", uid).order("created_at", { ascending: false }));
   },
   async pendingOrderFor(uid, courseId) {
     const rows = ok(await sb.from("orders").select("*").eq("buyer_id", uid).eq("course_id", courseId).eq("status", "pending").order("created_at", { ascending: false }).limit(1));
@@ -469,7 +469,7 @@ export const api = {
     const courses = ok(await sb.from("courses").select("id").eq("producer_id", uid));
     const ids = courses.map((c) => c.id);
     if (!ids.length) return [];
-    return ok(await sb.from("orders").select("id,reference,course_id,amount_mzn,commission_mzn,producer_net_mzn,affiliate_code,coupon_code,status,created_at,paid_at,payment_method, courses(title)").in("course_id", ids).order("created_at", { ascending: false }));
+    return ok(await sb.from("orders").select("id,reference,course_id,amount_mzn,commission_mzn,producer_net_mzn,affiliate_code,coupon_code,status,created_at,paid_at,payment_method, courses!orders_course_id_fkey(title)").in("course_id", ids).order("created_at", { ascending: false }));
   },
 
   // ---------- Cupões ----------
@@ -520,7 +520,7 @@ export const api = {
     return ok(await sb.from("affiliations").select(`id, code, course_id, created_at, courses(${COURSE_COLS})`).eq("user_id", uid).order("created_at", { ascending: false }));
   },
   async affiliateSales(uid) {
-    return ok(await sb.from("orders").select("id,reference,course_id,amount_mzn,affiliate_mzn,status,created_at,paid_at, courses(title)").eq("affiliate_id", uid).order("created_at", { ascending: false }));
+    return ok(await sb.from("orders").select("id,reference,course_id,amount_mzn,affiliate_mzn,status,created_at,paid_at, courses!orders_course_id_fkey(title)").eq("affiliate_id", uid).order("created_at", { ascending: false }));
   },
 
   // ---------- Carteira ----------
@@ -612,7 +612,7 @@ export const api = {
     return ok(await sb.rpc("submit_payment_proof", { _order: orderId, _txn: txn }));
   },
   async order(id) {
-    return ok(await sb.from("orders").select("*, courses(id,title,meta_pixel_id)").eq("id", id).maybeSingle());
+    return ok(await sb.from("orders").select("*, courses!orders_course_id_fkey(id,title,meta_pixel_id)").eq("id", id).maybeSingle());
   },
   async gatewayEnabled() {
     try {
@@ -722,7 +722,7 @@ export const api = {
     return ok(await qb.order("updated_at", { ascending: false }));
   },
   async adminOrders(status) {
-    let qb = sb.from("orders").select("*, courses(title), profiles!orders_buyer_id_fkey(full_name,email,phone)");
+    let qb = sb.from("orders").select("*, courses!orders_course_id_fkey(title), profiles!orders_buyer_id_fkey(full_name,email,phone)");
     if (status) qb = qb.eq("status", status);
     return ok(await qb.order("created_at", { ascending: false }).limit(200));
   },

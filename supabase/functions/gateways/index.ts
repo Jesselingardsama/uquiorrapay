@@ -439,7 +439,7 @@ Deno.serve(async (req) => {
       return json(await planStart(pp));
     }
     if (!UUID.test(String(body.order_id || ""))) return json({ error: "Pedido inválido" }, 400);
-    const { data: order } = await admin.from("orders").select("id,buyer_id,status,amount_mzn,pay_amount,pay_currency,reference,payment_method,payer_phone,course_id,gateway,gateway_payment_id, courses(title)").eq("id", body.order_id).maybeSingle();
+    const { data: order } = await admin.from("orders").select("id,buyer_id,status,amount_mzn,pay_amount,pay_currency,reference,payment_method,payer_phone,course_id,gateway,gateway_payment_id, courses!orders_course_id_fkey(title)").eq("id", body.order_id).maybeSingle();
     if (!order || order.buyer_id !== u.user.id) return json({ error: "Pedido não encontrado" }, 404);
 
     if (action === "start") {
