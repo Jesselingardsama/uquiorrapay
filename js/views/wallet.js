@@ -14,7 +14,7 @@ export async function wallet(main, { tab = "saldo" }, query, alive) {
   const W = w || {};
   const n = (k) => Number(W[k] || 0);
   const min = n("min_withdrawal") || 500;
-  const hold = n("hold_days") || 3;
+  const gdays = n("guarantee_days") || 0;
   const avail = n("available");
   const p = state.profile || {};
   const kcfg = state.settings.kyc || {};
@@ -42,7 +42,7 @@ export async function wallet(main, { tab = "saldo" }, query, alive) {
     const rows = items.filter((x) => (!cat || x.cat === cat) && (!q || x.desc.toLowerCase().includes(q)));
     body = `<div class="stats three-s">
         <div class="stat"><span>${tr("Saldo disponível", "Available balance")}</span><b class="ok-text">${esc(mzn(avail))}</b><small>&nbsp;</small></div>
-        <div class="stat"><span>${tr("Valores a receber", "Amounts receivable")}</span><b>${esc(mzn(n("on_hold")))}</b><small>${tr(`liberta ${hold} dias após a venda`, `released ${hold} days after the sale`)}</small></div>
+        <div class="stat"><span>${tr("Valores a receber", "Amounts receivable")}</span><b>${esc(mzn(n("on_hold")))}</b><small>${tr(`só em produtos com garantia (${gdays} dias)`, `only on products with a guarantee (${gdays} days)`)}</small></div>
         <div class="stat"><span>${tr("Saldo total", "Total balance")}</span><b>${esc(mzn(avail + n("on_hold")))}</b><small>&nbsp;</small></div>
       </div>
       <div class="card-box">
@@ -80,9 +80,9 @@ export async function wallet(main, { tab = "saldo" }, query, alive) {
   } else {
     body = `${kycBox}<a class="card-box notif" href="#/carteira/extrato"><span>${tr("Movimentos da carteira", "Wallet activity")}</span>${ICON.chev}</a>
       <div class="card-box bal">
-        <div class="bal-h"><b>${tr("Saldo", "Balance")}</b><span class="cur-tag">🇲🇿 MZN</span></div>
+        <div class="bal-h"><b>${tr("Saldo", "Balance")}<small class="instant-tag">⚡ ${tr("Saque na hora", "Instant withdrawal")}</small></b><span class="cur-tag">🇲🇿 MZN</span></div>
         <div class="bal-row"><small>${tr("Saldo disponível", "Available balance")}</small><b class="ok-text">${esc(mzn(avail))}</b></div>
-        <div class="bal-row"><small>${ICON.clock} ${tr("Valores a receber", "Amounts receivable")}</small><b>${esc(mzn(n("on_hold")))}</b><em>${tr(`Ficam disponíveis ${hold} dias depois de cada venda (garantia ao comprador).`, `Become available ${hold} days after each sale (buyer guarantee).`)}</em></div>
+        <div class="bal-row"><small>${ICON.clock} ${tr("Valores a receber", "Amounts receivable")}</small><b>${esc(mzn(n("on_hold")))}</b><em>${tr(`Só nos produtos em que activaste a garantia: ficam disponíveis ${gdays} dias depois da venda. Nos restantes, o dinheiro entra logo no saldo disponível.`, `Only on products where you turned on the guarantee: available ${gdays} days after the sale. On the rest, the money is available right away.`)}</em></div>
         <div class="bal-row"><small>${tr("Saldo total", "Total balance")}</small><b>${esc(mzn(avail + n("on_hold")))}</b></div>
         <div class="bal-foot"><a class="btn btn-outline-green" href="#/carteira/levantamentos">${tr("Pedir levantamento", "Request withdrawal")}</a></div>
       </div>

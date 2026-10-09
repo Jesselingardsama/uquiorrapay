@@ -1,6 +1,6 @@
 // Arranque, navegação (router), barra de topo, menu e rodapé.
 import { api } from "./api.js?v=202610080932";
-import { state, tr, esc, isProducer, isAdmin, setLang, setCurrency, initLocale, brandHTML, ICON, toast, loading, errorBox, appMenuHTML, activeKey, CONFIG } from "./ui.js?v=202610080932";
+import { state, tr, esc, isProducer, isAdmin, setLang, setCurrency, initLocale, brandHTML, ICON, toast, loading, errorBox, appMenuHTML, activeKey, CONFIG, supportWa } from "./ui.js?v=202610080932";
 import * as pub from "./views/public.js?v=202610080932";
 import { initTracking, pageView } from "./track.js?v=202610080932";
 import * as acc from "./views/account.js?v=202610080932";
@@ -26,6 +26,7 @@ const routes = [
   ["/diretrizes", pub.guidelines],
   ["/contacto", pub.contact],
   ["/app", pub.appPage],
+  ["/saas", pub.saasPage],
   ["/entrar", acc.signIn],
   ["/registar", acc.signUp],
   ["/recuperar", acc.forgot],
@@ -224,6 +225,7 @@ function renderDrawer() {
       ${u ? item("#/carteira", tr("Carteira", "Wallet")) : ""}
       ${u && isAdmin() ? item("#/admin", tr("Administração", "Admin")) : ""}
       ${item("#/contacto", tr("Central de ajuda", "Help center"))}
+      ${item("#/saas", `SaaS <span class="soon-tag">${tr("em breve", "coming soon")}</span>`)}
     </div>
     <div class="drawer-actions">
       ${u ? `<a class="btn btn-primary btn-block" href="#/meus-cursos">${tr("Os meus cursos", "My courses")}</a>
@@ -241,13 +243,13 @@ function closeDrawer() { document.body.classList.remove("drawer-open"); }
 function renderFooter() {
   document.getElementById("footer").innerHTML = `<div class="container foot-grid">
     <div>${brandHTML()}<p class="muted-light">${tr("Cria, publica e vende os teus produtos digitais.", "Create, publish and sell your digital products.")}</p></div>
-    <div><h4>${tr("Plataforma", "Platform")}</h4><a href="#/cursos">${tr("Ver produtos", "Browse products")}</a><a href="#/como-funciona">${tr("Como funciona", "How it works")}</a><a href="#/para-produtores">${tr("Para criadores", "For creators")}</a><a href="#/afiliados">${tr("Afiliados", "Affiliates")}</a><a href="#/app">📲 ${tr("Baixar a app", "Get the app")}</a></div>
-    <div><h4>${tr("Empresa", "Company")}</h4><a href="#/sobre">${tr("Sobre", "About")}</a><a href="#/contacto">${tr("Contacto", "Contact")}</a>${typeof state.settings.support_whatsapp === "string" && state.settings.support_whatsapp ? `<a href="https://wa.me/${state.settings.support_whatsapp.replace(/\D/g, "")}" target="_blank" rel="noopener">${tr("WhatsApp do suporte", "Support WhatsApp")}</a>` : ""}${waGroup() ? `<a href="${esc(waGroup())}" target="_blank" rel="noopener">${tr("Grupo no WhatsApp", "WhatsApp group")}</a>` : ""}${typeof state.settings.support_email === "string" && state.settings.support_email ? `<a href="mailto:${esc(state.settings.support_email)}">${esc(state.settings.support_email)}</a>` : ""}</div>
+    <div><h4>${tr("Plataforma", "Platform")}</h4><a href="#/cursos">${tr("Ver produtos", "Browse products")}</a><a href="#/como-funciona">${tr("Como funciona", "How it works")}</a><a href="#/para-produtores">${tr("Para criadores", "For creators")}</a><a href="#/afiliados">${tr("Afiliados", "Affiliates")}</a><a href="#/app">📲 ${tr("Baixar a app", "Get the app")}</a><a href="#/saas">SaaS <span class="soon-tag">${tr("em breve", "coming soon")}</span></a></div>
+    <div><h4>${tr("Empresa", "Company")}</h4><a href="#/sobre">${tr("Sobre", "About")}</a><a href="#/contacto">${tr("Contacto", "Contact")}</a>${supportWa() ? `<a href="https://wa.me/${supportWa()}" target="_blank" rel="noopener">${tr("WhatsApp do suporte", "Support WhatsApp")}</a>` : ""}${waGroup() ? `<a href="${esc(waGroup())}" target="_blank" rel="noopener">${tr("Grupo no WhatsApp", "WhatsApp group")}</a>` : ""}${typeof state.settings.support_email === "string" && state.settings.support_email ? `<a href="mailto:${esc(state.settings.support_email)}">${esc(state.settings.support_email)}</a>` : ""}</div>
     <div><h4>${tr("Legal", "Legal")}</h4><a href="#/termos">${tr("Termos de Uso", "Terms of Use")}</a><a href="#/privacidade">${tr("Privacidade", "Privacy")}</a><a href="#/diretrizes">${tr("Diretrizes de conteúdo", "Content guidelines")}</a></div>
   </div>
   <div class="container foot-bottom">© ${new Date().getFullYear()} Uquiorrapay. ${tr("Todos os direitos reservados.", "All rights reserved.")} <span class="ver">${esc(document.querySelector("meta[name=uq-version]")?.content || "")}</span></div>`;
   // Botão do WhatsApp: ao tocar mostra 2 opções — falar com o suporte ou entrar no grupo
-  const wa = typeof state.settings.support_whatsapp === "string" ? state.settings.support_whatsapp.replace(/\D/g, "") : "";
+  const wa = supportWa();
   const grp = waGroup();
   document.getElementById("wa-fab")?.remove();
   document.getElementById("wa-menu")?.remove();

@@ -1,7 +1,7 @@
 // Conta: entrar, registar, perfil, checkout, os meus cursos, aulas e pedido para ser produtor.
 import { api } from "../api.js?v=202610080932";
 import { initiateCheckout, purchase, registration } from "../track.js?v=202610080932";
-import { state, tr, esc, mzn, money, priceHTML, offerPriceHTML, hasStrike, cleanBonuses, coverHTML, videoEmbed, toast, modal, emptyState, errorBox, statusBadge, methodLabel, date, ICON, isProducer, isAdmin, loading, dashShell, getRef, gDays, supportOk, brandHTML, copyText, CONFIG, intlPrice, usdFmt } from "../ui.js?v=202610080932";
+import { state, tr, esc, mzn, money, priceHTML, offerPriceHTML, hasStrike, cleanBonuses, coverHTML, videoEmbed, toast, modal, emptyState, errorBox, statusBadge, methodLabel, date, ICON, isProducer, isAdmin, loading, dashShell, getRef, gDays, supportOk, brandHTML, copyText, CONFIG, intlPrice, usdFmt, usdRate, supportWa, hasGuarantee } from "../ui.js?v=202610080932";
 import { go, refreshUser, rerender } from "../app.js?v=202610080932";
 import { mountCaptcha, captchaOn } from "../captcha.js?v=202610080932";
 const needCaptcha = () => toast(tr("Confirma que não és um robô.", "Please confirm you're not a robot."), "err");
@@ -270,7 +270,7 @@ function payInstructions(order, course) {
   const cfg = { mpesa: s.payment_mpesa || {}, emola: s.payment_emola || {}, paypal: s.payment_paypal || {} }[order.payment_method] || {};
   const amount = order.pay_currency === "USD" ? `$${Number(order.pay_amount).toFixed(2)} USD` : mzn(order.pay_amount ?? order.amount_mzn);
   const dest = order.payment_method === "paypal" ? cfg.email : cfg.number;
-  const wa = typeof s.support_whatsapp === "string" && s.support_whatsapp ? s.support_whatsapp.replace(/\D/g, "") : "";
+  const wa = supportWa();
   const waText = encodeURIComponent(`Olá! Fiz o pedido ${order.reference} do curso "${course.title}".`);
   const steps = dest
     ? `<ol class="co-steps">
@@ -365,7 +365,7 @@ function pushWait(orderId, btn) {
 }
 
 // Página de checkout (modelo «Pagamento seguro»): resumo + garantias ao lado, dados e forma de pagamento no centro
-function ckPage(c, { total, disc = 0, code = "", usd = "", main: inner }) {
+function ckPage(c, { total, disc = 0, code = "", usd = "", bump = null, offer = null, main: inner }) {
   const bonuses = cleanBonuses(c.bonuses);
   const wa = String(c.support_whatsapp || "").replace(/\D/g, "");
   const usdTxt = Number(c.price_mzn) > 0 ? usd || usdFmt(intlPrice(c, Number(c.price_mzn) ? Math.round((disc / Number(c.price_mzn)) * 100) : 0)) : "";
@@ -378,12 +378,13 @@ function ckPage(c, { total, disc = 0, code = "", usd = "", main: inner }) {
           <div class="ck-prod">${coverHTML(c, "xs")}<div><b>${esc(c.title)}</b><small>${tr("Acesso digital imediato", "Instant digital access")}${c.producer_name ? ` · ${esc(c.producer_name)}` : ""}</small></div></div>
           <p class="ck-row"><span>${tr("Preço", "Price")}</span><span>${intlView ? esc(usdFmt(intlPrice(c))) : `${hasStrike(c) ? `<s class="muted">${esc(mzn(c.compare_price_mzn))}</s> ` : ""}${esc(Number(c.price_mzn) === 0 ? tr("Grátis", "Free") : mzn(c.price_mzn))}`}</span></p>
           ${bonuses.length ? `<p class="ck-row"><span>${ICON.gift} ${bonuses.length} ${bonuses.length > 1 ? tr("bónus", "bonuses") : tr("bónus", "bonus")}</span><span class="ok-text">${tr("incluído", "included")}</span></p>` : ""}
-          ${disc ? `<p class="ck-row ok-text"><span>${tr("Cupão", "Coupon")} ${esc(code)}</span><span>−${esc(mzn(disc))}</span></p>` : ""}
+          ${disc && code ? `<p class="ck-row ok-text"><span>${tr("Cupão", "Coupon")} ${esc(code)}</span><span>−${esc(mzn(disc))}</span></p>` : offer && offer.disc ? `<p class="ck-row ok-text"><span>${ICON.gift} ${tr("Oferta especial", "Special offer")}</span><span>−${esc(mzn(offer.disc))}</span></p>` : ""}
+          ${bump ? `<p class="ck-row"><span>${ICON.plus} ${esc(bump.title)}</span><span>+${esc(mzn(bump.price))}</span></p>` : ""}
           <p class="ck-row tot"><span>${tr("Total", "Total")}</span><span id="ckTotal">${esc(Number(total) === 0 ? tr("Grátis", "Free") : intlView ? usdTxt : mzn(total))}</span></p>
           ${usdTxt ? (intlView ? `<p class="ck-row ck-intl"><span>🇲🇿 M-Pesa · e-Mola</span><span>${esc(mzn(total))}</span></p>` : `<p class="ck-row ck-intl"><span>🌍 ${tr("Internacional", "International")}</span><span id="ckUsd">${esc(usdTxt)}</span></p>`) : ""}
         </div>
         <div class="ck-card ck-badges">
-          <p class="ck-badge">${ICON.shield}<span><b>${tr(`Garantia de ${gDays()} dias`, `${gDays()}-day guarantee`)}</b><small>${tr("Se não for para ti, pedes o reembolso dentro do prazo.", "If it's not for you, ask for a refund within the period.")}</small></span></p>
+          ${hasGuarantee(c) ? `<p class="ck-badge">${ICON.shield}<span><b>${tr(`Garantia de ${gDays()} dias`, `${gDays()}-day guarantee`)}</b><small>${tr("Se não for para ti, pedes o reembolso dentro do prazo.", "If it's not for you, ask for a refund within the period.")}</small></span></p>` : ""}
           <p class="ck-badge">${ICON.bolt}<span><b>${tr("Entrega imediata", "Instant delivery")}</b><small>${tr("O acesso aparece em «Os meus cursos» logo após a confirmação do pagamento.", "Access appears in “My courses” right after payment is confirmed.")}</small></span></p>
           ${wa || c.support_email ? `<p class="ck-badge">${ICON.whats}<span><b>${tr("Suporte do produtor", "Creator support")}</b><small>${wa ? `WhatsApp +${esc(wa)}` : esc(c.support_email)}</small></span></p>` : ""}
         </div>
@@ -413,6 +414,20 @@ export async function checkout(main, { id }, query, alive) {
 
   const [enrolled, pending, gw] = await Promise.all([api.isEnrolled(state.user.id, id), api.pendingOrderFor(state.user.id, id), free ? { enabled: false, paypal: false } : api.gatewayInfo()]);
   if (!alive()) return;
+  // Oferta especial (upsell/downsell) vinda da página pós-compra: #/checkout/<id>?oferta=upsell&de=<produto comprado>
+  let offer = null;
+  if (!free && ["upsell", "downsell"].includes(query.oferta) && query.de) {
+    const [src, bought] = await Promise.all([api.course(query.de).catch(() => null), api.isEnrolled(state.user.id, query.de).catch(() => false)]);
+    const op = Number(src?.[`${query.oferta}_price_mzn`] || 0);
+    if (src && bought && src.producer_id === c.producer_id && src[`${query.oferta}_course_id`] === id && op > 0 && op < Number(c.price_mzn)) offer = { kind: query.oferta, from: src.id, price: op, disc: Number(c.price_mzn) - op, title: src.title };
+  }
+  // Order bump: produto extra do mesmo produtor, oferecido no checkout com um clique
+  let bump = null, bumpOn = false;
+  if (!free && !offer && c.bump_course_id) {
+    const [bc, has] = await Promise.all([api.course(c.bump_course_id).catch(() => null), api.isEnrolled(state.user.id, c.bump_course_id).catch(() => true)]);
+    if (bc && bc.status === "approved" && bc.producer_id === c.producer_id && !has) bump = { id: bc.id, title: bc.title, price: Number(c.bump_price_mzn) > 0 ? Number(c.bump_price_mzn) : Number(bc.price_mzn), normal: Number(bc.price_mzn), text: c.bump_text || "" };
+  }
+  if (!alive()) return;
   const gateway = Boolean(gw.enabled), paypalApi = Boolean(gw.paypal);
   const paypalManual = !paypalApi && Boolean(state.settings.payment_paypal?.email);
   // pagamento automático conforme o método do pedido: telemóvel (Pagar/e2/PaySuite) ou PayPal (internacional)
@@ -420,11 +435,16 @@ export async function checkout(main, { id }, query, alive) {
   state.gateway = pending ? autoFor(pending.payment_method) : gateway;
   const ref = getRef(id);
   let pctOff = 0, couponCode = "";
-  const disc = () => Math.round(Number(c.price_mzn) * pctOff) / 100;
-  const total = () => Number(c.price_mzn) - disc();
+  const disc = () => (offer ? offer.disc : Math.round(Number(c.price_mzn) * pctOff) / 100);
+  const bumpV = () => (bumpOn && bump ? bump.price : 0);
+  const total = () => Number(c.price_mzn) - disc() + bumpV();
 
-  const showOrder = (order) => {
-    main.innerHTML = ckPage(c, { total: Number(order.amount_mzn), disc: Number(order.discount_mzn || 0), code: order.coupon_code || "", usd: order.pay_currency === "USD" && order.pay_amount != null ? usdFmt(order.pay_amount) : "", main: `<h2>${tr("Concluir pagamento", "Complete payment")}</h2><div class="co-body">${payInstructions(order, c)}</div>` });
+  const showOrder = async (order) => {
+    const bc = order.bump_course_id ? await api.course(order.bump_course_id).catch(() => null) : null;
+    if (!alive()) return;
+    main.innerHTML = ckPage(c, { total: Number(order.amount_mzn), disc: Number(order.discount_mzn || 0), code: order.coupon_code || "", usd: order.pay_currency === "USD" && order.pay_amount != null ? usdFmt(order.pay_amount) : "",
+      bump: order.bump_course_id ? { title: bc?.title || tr("Produto extra", "Extra product"), price: Number(order.bump_mzn || 0) } : null, offer: order.offer_kind ? { disc: Number(order.discount_mzn || 0) } : null,
+      main: `<h2>${tr("Concluir pagamento", "Complete payment")}</h2><div class="co-body">${payInstructions(order, c)}</div>` });
     bindOrder(main.querySelector(".co-card"), order, c);
   };
 
@@ -432,7 +452,7 @@ export async function checkout(main, { id }, query, alive) {
     main.innerHTML = ckPage(c, { total: c.price_mzn, main: `<h2>${tr("Já tens acesso", "You already have access")}</h2><p class="muted">${tr("Este produto já está em «Os meus cursos».", "This product is already in “My courses”.")}</p><a class="btn btn-green btn-block btn-lg" href="#/aprender/${esc(id)}">${tr("Abrir", "Open")} ${ICON.arrow}</a>` });
     return;
   }
-  if (pending) { showOrder(pending); return; }
+  if (pending) { await showOrder(pending); return; }
 
   const pf = state.profile || {};
   const synth = isPhoneAccount(state.user.email);
@@ -442,7 +462,8 @@ export async function checkout(main, { id }, query, alive) {
   const international = [["paypal", "PayPal", paypalApi || paypalManual, paypalApi || paypalManual ? "" : SOON], ["card", tr("Cartão internacional", "International card"), paypalApi, paypalApi ? "Visa · Mastercard" : SOON]];
   let method = state.currency !== "MZN" && (paypalApi || paypalManual) ? "paypal" : "mpesa";
   const isIntl = (m) => m === "paypal" || m === "card";
-  const usd = () => usdFmt(intlPrice(c, pctOff));
+  const usdOf = (mz) => Math.round((Number(mz) / usdRate()) * 100) / 100;
+  const usd = () => usdFmt((offer ? usdOf(offer.price) : intlPrice(c, pctOff)) + (bumpOn && bump ? usdOf(bump.price) : 0));
   const pmTile = ([k, l, on, note]) => `<label class="ck-pm ${on ? "" : "off"}"><input type="radio" name="m" value="${k}" ${k === method ? "checked" : ""} ${on ? "" : "disabled"}>${payIcon(k)}<span class="ck-pm-t"><b>${l}</b>${note ? `<small>${esc(note)}</small>` : ""}</span></label>`;
   const payLabel = () => free ? tr("Inscrever-me grátis", "Enrol for free")
     : isIntl(method) ? (autoFor("paypal") ? `${ICON.lock} ${tr("Pagar", "Pay")} ${esc(usd())}` : tr(`Confirmar pedido · ${usd()}`, `Place order · ${usd()}`))
@@ -457,9 +478,11 @@ export async function checkout(main, { id }, query, alive) {
         <div class="ck-group"><h4>🌍 ${tr("Pagamento internacional", "International")}<small>${tr("em dólares", "in US dollars")} · ${esc(usd())}</small></h4>
           <div class="ck-tabs" role="radiogroup">${international.map(pmTile).join("")}</div></div>
 `;
-  const form = () => {
-    main.innerHTML = ckPage(c, { total: total(), disc: disc(), code: couponCode, usd: Number(c.price_mzn) > 0 ? usd() : "", main: `
+  // «keep»: valores já escritos (para não os perder ao redesenhar, ex.: ao marcar o order bump)
+  const form = (keep = null) => {
+    main.innerHTML = ckPage(c, { total: total(), disc: disc(), code: couponCode, usd: Number(c.price_mzn) > 0 ? usd() : "", bump: bumpOn && bump ? { title: bump.title, price: bump.price } : null, offer: offer ? { disc: offer.disc } : null, main: `
       <form id="ckf" class="form ck-form" novalidate>
+        ${offer ? `<div class="ck-offer">${ICON.gift}<span>${tr(`Oferta especial por teres comprado «${esc(offer.title)}»: <b>${esc(mzn(offer.price))}</b> em vez de ${esc(mzn(c.price_mzn))}.`, `Special offer for buying “${esc(offer.title)}”: <b>${esc(mzn(offer.price))}</b> instead of ${esc(mzn(c.price_mzn))}.`)}</span></div>` : ""}
         <h2>${tr("Os teus dados", "Your details")}</h2>
         <label>${tr("Nome completo", "Full name")}<input class="input" name="full_name" autocomplete="name" required minlength="3" maxlength="80" value="${esc(pf.full_name || "")}"></label>
         <label>${tr("Email", "Email")}<input class="input" name="email" type="email" value="${esc(synth ? "" : state.user.email || "")}" ${synth ? `placeholder="${tr("(conta criada com telefone)", "(phone account)")}"` : ""} readonly></label>
@@ -472,14 +495,18 @@ export async function checkout(main, { id }, query, alive) {
         </div>
         <div class="ck-pane" data-pane="paypal" ${method === "paypal" ? "" : "hidden"}><p class="ck-note">${paypalApi ? tr(`Vais ser levado ao PayPal para pagar <b>${esc(usd())}</b> com a tua conta. Depois voltas aqui automaticamente.`, `You'll go to PayPal to pay <b>${esc(usd())}</b> with your account, then come back here automatically.`) : tr(`Total em dólares: <b>${esc(usd())}</b>. Depois de confirmares, mostramos o email PayPal para onde enviar.`, `Total in dollars: <b>${esc(usd())}</b>. After confirming, we show the PayPal email.`)}</p></div>
         <div class="ck-pane" data-pane="card" ${method === "card" ? "" : "hidden"}><p class="ck-note">${tr(`Pagas <b>${esc(usd())}</b> com cartão Visa ou Mastercard numa página segura do PayPal — não precisas de ter conta PayPal. Os dados do cartão não passam pela Uquiorrapay.`, `Pay <b>${esc(usd())}</b> by Visa or Mastercard on a secure PayPal page — no PayPal account needed. Card details never touch Uquiorrapay.`)}</p></div>
-        <div class="ck-coupon">${couponCode ? `<span class="ok-text">${ICON.tag} ${tr("Cupão", "Coupon")} <b>${esc(couponCode)}</b> −${pctOff}%</span> <button type="button" class="link-btn" id="cpDel">${tr("Remover", "Remove")}</button>`
-          : `<button type="button" class="link-btn" id="cpOpen">${ICON.tag} ${tr("Tenho um cupão de desconto", "I have a discount coupon")}</button><div class="cp-inline" id="cpf" hidden><input class="input" id="cp" placeholder="${tr("CÓDIGO", "CODE")}" maxlength="30" value="${esc(query.cupao || "")}"><button type="button" class="btn btn-green btn-sm" id="cpApply">${tr("Aplicar", "Apply")}</button></div>`}</div>`}
+        ${bump ? `<label class="ck-bump ${bumpOn ? "on" : ""}"><input type="checkbox" id="bumpChk" ${bumpOn ? "checked" : ""}><span class="ck-bump-t"><b>${ICON.gift} ${tr("Sim, quero adicionar", "Yes, add this too")}: ${esc(bump.title)}</b><small>${esc(bump.text || tr("Oferta exclusiva só nesta compra. Recebes os dois produtos juntos.", "Exclusive offer, only with this purchase. You get both products together."))}</small><em>${bump.normal > bump.price ? `<s>${esc(mzn(bump.normal))}</s>` : ""}+${esc(mzn(bump.price))}</em></span></label>` : ""}
+        ${offer ? "" : `<div class="ck-coupon">${couponCode ? `<span class="ok-text">${ICON.tag} ${tr("Cupão", "Coupon")} <b>${esc(couponCode)}</b> −${pctOff}%</span> <button type="button" class="link-btn" id="cpDel">${tr("Remover", "Remove")}</button>`
+          : `<button type="button" class="link-btn" id="cpOpen">${ICON.tag} ${tr("Tenho um cupão de desconto", "I have a discount coupon")}</button><div class="cp-inline" id="cpf" hidden><input class="input" id="cp" placeholder="${tr("CÓDIGO", "CODE")}" maxlength="30" value="${esc(query.cupao || "")}"><button type="button" class="btn btn-green btn-sm" id="cpApply">${tr("Aplicar", "Apply")}</button></div>`}</div>`}`}
         ${ref ? `<p class="co-ref">${ICON.link} ${tr("Indicado por um afiliado", "Referred by an affiliate")} · ${esc(ref)}</p>` : ""}
         <p class="err-text ck-err" id="ckErr" role="alert"></p>
         <button class="btn btn-primary btn-block btn-lg ck-pay" id="go">${payLabel()}</button>
         <p class="ck-terms">${tr("Ao comprar, aceitas os", "By purchasing you accept the")} <a href="#/termos">${tr("Termos de Uso", "Terms of Use")}</a> ${tr("e a", "and the")} <a href="#/privacidade">${tr("Política de Privacidade", "Privacy Policy")}</a>.</p>
       </form>` });
     const f = document.getElementById("ckf");
+    if (keep) { for (const k of ["full_name", "whatsapp", "payer_phone"]) if (f[k] && keep[k] != null) f[k].value = keep[k]; }
+    const snapshot = () => ({ full_name: f.full_name.value, whatsapp: f.whatsapp.value, payer_phone: f.payer_phone?.value });
+    document.getElementById("bumpChk")?.addEventListener("change", (e) => { bumpOn = e.target.checked; form(snapshot()); });
     f.querySelectorAll("input[name=m]").forEach((r) => r.addEventListener("change", () => {
       method = r.value;
       const pane = method === "paypal" ? "paypal" : method === "card" ? "card" : "tel";
@@ -502,6 +529,8 @@ export async function checkout(main, { id }, query, alive) {
       if (name.length < 3) msg = tr("Escreve o teu nome completo.", "Enter your full name.");
       else if (wa.replace(/\D/g, "").length < 9) msg = tr("Escreve um WhatsApp válido, com pelo menos 9 dígitos.", "Enter a valid WhatsApp number with at least 9 digits.");
       else if (!free && !isIntl(method) && !MZ_PHONE.test(ph)) msg = tr(`Escreve o número ${method === "emola" ? "e-Mola" : "M-Pesa"} que vai pagar, com 9 dígitos (ex.: 84 123 4567).`, `Enter the paying ${method === "emola" ? "e-Mola" : "M-Pesa"} number, 9 digits (e.g. 84 123 4567).`);
+      else if (!free && method === "emola" && !/^(\+?258)?8[67]/.test(ph)) msg = tr("O número e-Mola tem de começar por 86 ou 87. Se o teu número é 84/85, escolhe M-Pesa.", "e-Mola numbers start with 86 or 87. If yours is 84/85, choose M-Pesa.");
+      else if (!free && method === "mpesa" && !/^(\+?258)?8[45]/.test(ph)) msg = tr("O número M-Pesa tem de começar por 84 ou 85. Se o teu número é 86/87, escolhe e-Mola.", "M-Pesa numbers start with 84 or 85. If yours is 86/87, choose e-Mola.");
       err.textContent = msg;
       if (msg) { (msg.includes("nome") || msg.includes("name") ? f.full_name : msg.includes("WhatsApp") ? f.whatsapp : f.payer_phone)?.focus(); return; }
       const upd = {};
@@ -524,24 +553,68 @@ export async function checkout(main, { id }, query, alive) {
   const placeOrder = async (btn, { payment_method, payer_phone, kind = "" }) => {
     busy(btn, true);
     try {
-      const order = await api.createOrder({ course_id: id, payment_method, payer_phone, coupon_code: couponCode || null, affiliate_code: ref });
+      const order = await api.createOrder({ course_id: id, payment_method, payer_phone, coupon_code: couponCode || null, affiliate_code: ref, bump_course_id: bumpOn && bump ? bump.id : null, offer_kind: offer?.kind || null, offer_from: offer?.from || null });
       if (Number(order.amount_mzn) === 0 || order.status === "paid") { toast(tr("Inscrição feita!", "Enrolled!")); go(`#/aprender/${id}`); return; }
       state.gateway = autoFor(payment_method);
       if (state.gateway) {
-        showOrder(order);
+        await showOrder(order);
         if (await goGateway(main.querySelector("#gw") || btn, order.id, true, kind)) return;
         // Nenhum fornecedor respondeu: mostra as instruções de pagamento manual para o cliente não ficar parado
         state.gateway = false;
         toast(/MODO DE TESTE/.test(lastGwError) ? lastGwError : tr("O pagamento automático está indisponível de momento. Paga pelo método manual abaixo.", "Automatic payment is unavailable right now. Use the manual method below."), "err");
       }
       toast(tr("Pedido registado.", "Order placed."));
-      showOrder(order);
+      await showOrder(order);
       window.scrollTo(0, 0);
     } catch (err) { toast(err.message, "err"); busy(btn, false); }
   };
 
   form();
   if (query.cupao && !free) applyCoupon(query.cupao, true);
+}
+
+// ---------- Upsell / downsell depois da compra (configurados pelo produtor no produto comprado) ----------
+async function funnelOffers(srcId) {
+  const src = await api.course(srcId).catch(() => null);
+  if (!src || !state.user) return [];
+  const pick = async (kind) => {
+    const cid = src[`${kind}_course_id`], price = Number(src[`${kind}_price_mzn`] || 0);
+    if (!cid || !(price > 0)) return null;
+    const [c2, has] = await Promise.all([api.course(cid).catch(() => null), api.isEnrolled(state.user.id, cid).catch(() => true)]);
+    if (!c2 || c2.status !== "approved" || c2.producer_id !== src.producer_id || has || !(price < Number(c2.price_mzn))) return null;
+    return { kind, c: c2, price, text: src[`${kind}_text`] || "" };
+  };
+  const [up, down] = await Promise.all([pick("upsell"), pick("downsell")]);
+  return [up, down].filter(Boolean);
+}
+function offerBoxHTML(o, srcId) {
+  const off = Math.round((1 - o.price / Number(o.c.price_mzn)) * 100);
+  return `<div class="upsell-box" data-kind="${o.kind}">
+    <span class="upsell-k">${o.kind === "upsell" ? tr("Oferta especial só agora", "One-time special offer") : tr("Última oportunidade", "Last chance")}</span>
+    <div class="upsell-prod">${coverHTML(o.c, "xs")}<div><b>${esc(o.c.title)}</b><small>${esc(o.text || tr("Complementa o que acabaste de comprar.", "Complements what you just bought."))}</small></div></div>
+    <p class="upsell-price"><s>${esc(mzn(o.c.price_mzn))}</s><b>${esc(mzn(o.price))}</b>${off >= 1 ? `<em class="off-badge">−${off}%</em>` : ""}</p>
+    <div class="upsell-btns"><a class="btn btn-primary btn-block" data-upsell-yes href="#/checkout/${esc(o.c.id)}?oferta=${o.kind}&de=${esc(srcId)}">${tr("Sim, quero aproveitar", "Yes, I want it")} ${ICON.arrow}</a><button type="button" class="link-btn" data-upsell-no>${tr("Não, obrigado", "No, thanks")}</button></div>
+  </div>`;
+}
+// Mostra o upsell; se o cliente recusar, mostra o downsell. «once»: depois de responder, não volta a aparecer neste aparelho
+async function mountFunnel(el, srcId, { after = false, once = false } = {}) {
+  if (!el) return;
+  const key = `uq_funnel_${srcId}`;
+  try { if (once && localStorage.getItem(key)) return; } catch {}
+  const list = await funnelOffers(srcId);
+  if (!list.length || !document.body.contains(el)) return;
+  const [first, second] = list;
+  const html = `<div class="upsell-wrap">${offerBoxHTML(first, srcId)}${second ? `<div hidden data-next>${offerBoxHTML(second, srcId)}</div>` : ""}</div>`;
+  if (after) el.insertAdjacentHTML("afterend", html); else el.innerHTML = html;
+  const wrap = after ? el.nextElementSibling : el.querySelector(".upsell-wrap");
+  const seen = () => { if (once) { try { localStorage.setItem(key, "1"); } catch {} } };
+  wrap.addEventListener("click", (e) => {
+    if (e.target.closest("[data-upsell-yes]")) { seen(); return; }
+    const no = e.target.closest("[data-upsell-no]"); if (!no) return;
+    const box = no.closest(".upsell-box"), next = wrap.querySelector("[data-next]");
+    if (box.dataset.kind === "upsell" && next && next.hidden) { box.remove(); next.hidden = false; return; }
+    seen(); wrap.remove();
+  });
 }
 
 // Regresso do pagamento online
@@ -563,7 +636,8 @@ export async function paymentReturn(main, { id }, _q, alive) {
     try { if (Number(o.amount_mzn) > 0) purchase(o, { id: o.course_id, title: o.courses?.title, meta_pixel_id: o.courses?.meta_pixel_id }); } catch {}
     main.innerHTML = `<section class="page container narrow center"><div class="success-ic">${ICON.check}</div><h1 class="page-title">${tr("Pagamento confirmado!", "Payment confirmed!")}</h1>
       <p class="lead-dark">${tr(`Já tens acesso a «${esc(o.courses?.title || "")}».`, `You now have access to “${esc(o.courses?.title || "")}”.`)}</p>
-      <a class="btn btn-primary btn-lg" href="#/aprender/${esc(o.course_id)}">${tr("Começar o curso", "Start the course")} ${ICON.arrow}</a></section>`;
+      <a class="btn btn-primary btn-lg" href="#/aprender/${esc(o.course_id)}">${tr("Começar o curso", "Start the course")} ${ICON.arrow}</a><div id="funnel"></div></section>`;
+    mountFunnel(document.getElementById("funnel"), o.course_id);
     return;
   }
   main.innerHTML = `<section class="page container narrow center">${emptyState(tr("Ainda não recebemos a confirmação", "We haven't received confirmation yet"), tr("Se já pagaste, espera um minuto e verifica de novo.", "If you've paid, wait a minute and check again."),
@@ -758,6 +832,8 @@ export async function learn(main, { id, lesson }, query, alive) {
   </section>`;
   // move a lista de aulas para a coluna lateral no computador
   if (wide) { const side = document.createElement("aside"); side.className = "lx-side"; side.appendChild(document.getElementById("lxList")); main.querySelector(".lx-grid").appendChild(side); }
+  // Oferta especial do produtor (upsell/downsell) — uma vez por produto; útil quando o pagamento foi confirmado mais tarde (manual)
+  if (enrolled && !owner && !isAdmin()) mountFunnel(main.querySelector(".lx-nav"), id, { after: true, once: true });
   main.querySelector(".lx-tabs").addEventListener("click", (e) => {
     const t = e.target.closest("[data-tab]"); if (!t) return;
     main.querySelectorAll("[data-tab]").forEach((b) => b.classList.toggle("on", b === t));

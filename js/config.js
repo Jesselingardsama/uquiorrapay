@@ -6,6 +6,10 @@ export const CONFIG = {
   SUPABASE_KEY: "sb_publishable_ZhMujtcR7aD3y6AxiDJ-AA_fQhAz8iX",
   // Mudar para true depois de activar o Google em Supabase → Authentication → Providers
   GOOGLE_LOGIN: false,
+  // WhatsApp do suporte da plataforma (usado se as definições ainda não tiverem número)
+  SUPPORT_WHATSAPP: "258863097627",
+  // Comissão da plataforma por defeito (%) — o valor real vem das Definições (Administração)
+  COMMISSION_PCT: 9.5,
   // Categorias agrupadas (o nome em português é o que fica guardado na base de dados)
   CATEGORY_GROUPS: [
     ["Negócios e dinheiro", "Business & money", ["Negócios", "Empreendedorismo digital", "Marketing", "Vendas", "Finanças", "Direito"]],

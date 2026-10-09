@@ -1,7 +1,7 @@
 // Área interna do produtor (estrutura inspirada na Hotmart):
 // Início (painel), Os meus produtos, Gestão de vendas, Criar produto (3 passos) e página do produto com lista de passos.
 import { api } from "../api.js?v=202610080932";
-import { state, tr, esc, mzn, siteUrl, usdRate, coverHTML, videoEmbed, cleanBonuses, statusBadge, date, toast, modal, emptyState, ICON, isAdmin, isProducer, methodLabel, dashShell, copyText, TYPES, typeLabel, unitLabel, catLabel, catOptions, trackUpload, supportOk, photo, PHOTOS, CONFIG, isSponsored, donutSVG, areaSVG, gaugeSVG, dailySeries, deltaHTML } from "../ui.js?v=202610080932";
+import { state, tr, esc, mzn, siteUrl, usdRate, coverHTML, cleanBonuses, statusBadge, date, toast, modal, emptyState, ICON, isAdmin, isProducer, methodLabel, dashShell, copyText, TYPES, typeLabel, unitLabel, catLabel, catOptions, trackUpload, supportOk, photo, PHOTOS, CONFIG, isSponsored, donutSVG, areaSVG, gaugeSVG, dailySeries, deltaHTML, pctFee, gDays } from "../ui.js?v=202610080932";
 import { affLink } from "./wallet.js?v=202610080932";
 import { pushCardHTML, wirePush } from "../push.js?v=202610080932";
 import { go, refreshUser, rerender } from "../app.js?v=202610080932";
@@ -18,7 +18,6 @@ const descTooLong = (el) => {
   el.focus(); return true;
 };
 function busy(btn, on) { if (btn) { btn.disabled = on; btn.classList.toggle("busy", on); } }
-const pctFee = () => Number(state.settings.commission_pct ?? 10);
 
 const TYPE_INFO = () => ({
   curso: [ICON.play, tr("Curso online", "Online course"), tr("Aulas em vídeo, textos, PDFs e materiais", "Video lessons, texts, PDFs and materials")],
@@ -409,6 +408,7 @@ export async function createWizard(main, _p, query) {
           <label><span class="pr-flag">🌍 ${tr("Preço internacional (USD)", "International price (USD)")}</span>${usdInput(d.price_usd)}<small class="muted">${tr("PayPal e cartão Visa/Mastercard", "PayPal and Visa/Mastercard")}</small></label>
         </div>
         <div class="earn" id="earn"></div>
+        <label class="switch gar-sw"><input type="checkbox" name="guarantee_enabled" ${d.guarantee_enabled ? "checked" : ""}><span><b>${tr(`Oferecer garantia de ${gDays()} dias ao comprador (opcional)`, `Offer buyers a ${gDays()}-day guarantee (optional)`)}</b><small>${tr(`Sem garantia, o dinheiro de cada venda fica disponível na hora para levantar. Com garantia, fica retido ${gDays()} dias (o prazo em que o comprador pode pedir reembolso) e o selo de garantia aparece na página de venda.`, `Without a guarantee, the money from each sale is available right away. With a guarantee, it is held for ${gDays()} days (the refund window) and the guarantee badge shows on the sales page.`)}</small></span></label>
         <div class="w-actions"><button type="button" class="btn btn-ghost-dark" id="back">${tr("Voltar", "Back")}</button>
           <span class="spacer"></span>
           <button type="button" class="btn btn-soft" id="draft">${ICON.doc} ${tr("Guardar como rascunho", "Save as draft")}</button>
@@ -424,7 +424,7 @@ export async function createWizard(main, _p, query) {
     let usdTouched = Boolean(d.price_usd);
     f.price_usd.addEventListener("input", () => { usdTouched = true; });
     f.price_mzn.addEventListener("input", () => { if (!usdTouched) f.price_usd.value = usdSuggest(f.price_mzn.value); });
-    document.getElementById("back").onclick = () => { d.price_mzn = f.price_mzn.value; d.price_usd = f.price_usd.value; step = 2; render(); };
+    document.getElementById("back").onclick = () => { d.price_mzn = f.price_mzn.value; d.price_usd = f.price_usd.value; d.guarantee_enabled = f.guarantee_enabled.checked; step = 2; render(); };
     let asDraft = false;
     document.getElementById("draft").onclick = () => { asDraft = true; f.requestSubmit(); };
     document.getElementById("create").onclick = () => { asDraft = false; };
@@ -435,7 +435,7 @@ export async function createWizard(main, _p, query) {
       if (!usdOk(d.price_usd)) { usdErr(); f.price_usd.focus(); return; }
       const btn = document.getElementById(asDraft ? "draft" : "create"); busy(btn, true);
       try {
-        let c = await api.createCourse({ product_type: d.product_type, title: d.title.trim(), description: d.description.trim(), language: d.language, category: d.category, price_mzn: Math.round(Number(d.price_mzn)), price_usd: Math.round(Number(d.price_usd) * 100) / 100 });
+        let c = await api.createCourse({ product_type: d.product_type, title: d.title.trim(), description: d.description.trim(), language: d.language, category: d.category, price_mzn: Math.round(Number(d.price_mzn)), price_usd: Math.round(Number(d.price_usd) * 100) / 100, guarantee_enabled: Boolean(f.guarantee_enabled.checked) });
         if (d.file) {
           const cid = c.id;
           try { await sendFile(d.file, (f, p) => api.uploadCover(cid, f, p), async (url) => { await api.updateCourse(cid, { cover_url: url }); }); }
@@ -463,14 +463,16 @@ function checklist(course, { lessons, coupons, profileOk }) {
     { k: "info", req: true, ok: Boolean(course.title && (course.description || "").length >= 30 && course.category), t: tr("Informação básica", "Basic information"), d: tr("Nome, descrição, tipo, língua e categoria.", "Name, description, type, language and category.") },
     { k: "capa", req: false, rec: true, ok: Boolean(course.cover_url), t: tr("Capa do produto", "Product cover"), d: tr("A imagem que aparece na montra e na página de venda.", "The image shown in the marketplace and sales page.") },
     { k: "preco", req: true, ok: course.price_mzn != null && Number(course.price_mzn) >= CONFIG.PRICE_MIN && Number(course.price_usd) >= 1, t: tr("Preços (nacional e internacional)", "Prices (local and international)"), d: tr("Preço em meticais para Moçambique e em dólares para quem paga de fora (PayPal ou cartão).", "Price in meticais for Mozambique and in dollars for international buyers (PayPal or card).") },
+    { k: "garantia", req: false, ok: Boolean(course.guarantee_enabled), t: tr("Garantia ao comprador", "Buyer guarantee"), d: tr(`Opcional. Sem garantia, o dinheiro das vendas fica disponível na hora. Com garantia de ${gDays()} dias, fica retido esse prazo.`, `Optional. Without a guarantee, sale money is available right away. With a ${gDays()}-day guarantee, it is held for that period.`) },
     { k: "pagina", req: true, ok: Boolean((course.learn_points || "").trim()), t: tr("Página de venda", "Sales page"), d: tr("O que o comprador vai aprender, para quem é e requisitos.", "What buyers will learn, who it's for and requirements.") },
     { k: "conteudo", req: true, ok: lessons > 0, t: ct, d: cd },
-    { k: "oferta", req: false, rec: true, ok: Boolean(course.promo_video_url || cleanBonuses(course.bonuses).length || course.compare_price_mzn), ...(["curso", "audio"].includes(course.product_type || "curso") ? { t: tr("Vídeo de apresentação e bónus", "Promo video and bonuses"), d: tr("Um vídeo curto no topo da página de venda e bónus que tornam a oferta irresistível.", "A short video at the top of the sales page and bonuses that make the offer irresistible.") } : { t: tr("Bónus da oferta", "Offer bonuses"), d: tr("Bónus que tornam a oferta irresistível (ex.: modelo extra, grupo no WhatsApp).", "Bonuses that make the offer irresistible.") }) },
+    { k: "oferta", req: false, rec: true, ok: Boolean(cleanBonuses(course.bonuses).length || course.compare_price_mzn), t: tr("Bónus da oferta", "Offer bonuses"), d: tr("Bónus que tornam a oferta irresistível (ex.: modelo extra, grupo no WhatsApp).", "Bonuses that make the offer irresistible (e.g. extra template, WhatsApp group).") },
     { k: "suporte", req: true, ok: supportOk(course), t: tr("Suporte ao comprador", "Buyer support"), d: tr("Obrigatório: o teu WhatsApp e email para os compradores te contactarem. Sem isto não recebes o link de checkout.", "Required: your WhatsApp and email so buyers can reach you. Without this you don't get the checkout link.") },
     { k: "perfil", req: true, ok: profileOk, t: tr("Dados pessoais completos", "Personal details completed"), d: tr("Precisamos do teu nome e telefone para te pagar.", "We need your name and phone to pay you.") },
     { k: "afiliados", req: false, ok: Boolean(course.affiliate_enabled), t: tr("Programa de afiliados", "Affiliate program"), d: tr("Vende mais com outras pessoas a promover o teu produto por comissão.", "Sell more with others promoting your product for a commission.") },
     { k: "pixel", req: false, ok: Boolean(course.meta_pixel_id), t: tr("Pixel do Facebook", "Facebook pixel"), d: tr("Mede os teus anúncios: o teu pixel do Meta recebe as visitas, inícios de compra e vendas deste produto.", "Measure your ads: your Meta pixel receives this product's visits, checkouts and sales.") },
     { k: "cupoes", req: false, ok: coupons > 0, t: tr("Cupões de desconto", "Discount coupons"), d: tr("Cria promoções para campanhas e datas especiais.", "Create promotions for campaigns and special dates.") },
+    { k: "funil", req: false, ok: Boolean(course.bump_course_id || course.upsell_course_id || course.downsell_course_id), t: tr("Order bump, upsell e downsell", "Order bump, upsell & downsell"), d: tr("Vende mais na mesma compra: um produto extra no checkout e ofertas especiais logo depois do pagamento.", "Sell more per purchase: an extra product at checkout and special offers right after payment.") },
   ];
 }
 
@@ -500,7 +502,7 @@ export async function editor(main, { id }, query, alive) {
   const statusBox = {
     draft: "",
     pending: `<div class="alert">${tr("Em revisão. A nossa IA faz uma primeira análise e a equipa confirma. Recebes a decisão aqui.", "Under review. Our AI does a first check and the team confirms. You'll see the decision here.")}</div>`,
-    approved: `<div class="alert alert-ok">${tr("Publicado e à venda. Alterar nome, descrição, preço, imagem, vídeo ou bónus envia o produto de novo para revisão.", "Live and on sale. Changing name, description, prices, image, video or bonuses sends it back for review.")}</div>`,
+    approved: `<div class="alert alert-ok">${tr("Publicado e à venda. Alterar nome, descrição, preço, imagem ou bónus envia o produto de novo para revisão.", "Live and on sale. Changing name, description, prices, image or bonuses sends it back for review.")}</div>`,
     rejected: `<div class="alert alert-err">${tr("Não aprovado", "Not approved")}: ${esc(course.rejection_reason || "")} — ${tr("corrige e envia de novo.", "fix it and submit again.")}</div>`,
   }[course.status] || "";
 
@@ -718,20 +720,14 @@ export async function editor(main, { id }, query, alive) {
 
   if (sec === "oferta") {
     let bon = cleanBonuses(course.bonuses).map((b) => ({ title: b.title || "", desc: b.desc || "", value: b.value || "" }));
-    const vidOk = ["curso", "audio"].includes(course.product_type || "curso");
     main.innerHTML = wrap(`<form id="f" class="form">
-      ${vidOk ? `<label>${tr("Vídeo de apresentação (link)", "Promo video (link)")}<input class="input" name="promo_video_url" type="url" inputmode="url" maxlength="500" value="${esc(course.promo_video_url || "")}" placeholder="https://youtu.be/…  ·  Vimeo  ·  Google Drive"></label>
-      <p class="small muted">${tr("Aparece no topo da página de venda, no lugar da imagem. 1 a 3 minutos: quem és, o que a pessoa vai conseguir e para quem é. No YouTube podes usar «Não listado».", "Shown at the top of the sales page. 1–3 minutes: who you are, what buyers will achieve and who it's for.")}</p>
-      <div id="vPrev"></div>` : `<p class="small muted">${tr("Em ebooks e templates a página de venda mostra a capa do produto (sem vídeo).", "Ebooks and templates show the product cover on the sales page (no video).")}</p>`}
       <h3 class="bonus-h">${ICON.gift} ${tr("Bónus (opcional)", "Bonuses (optional)")}</h3>
       <p class="small muted">${tr("Extras que o comprador recebe com o produto (ex.: modelo de orçamento, grupo no WhatsApp, aula ao vivo). Entrega os ficheiros dos bónus no conteúdo do produto.", "Extras buyers get with the product. Deliver the bonus files in the product content.")}</p>
       <div id="bonList"></div>
       <button type="button" class="btn btn-sm btn-outline-green" id="bonAdd">${ICON.plus} ${tr("Adicionar bónus", "Add bonus")}</button>
-      ${course.status === "approved" ? `<p class="small muted">${tr("Atenção: alterar o vídeo ou os bónus de um produto à venda envia-o de novo para revisão.", "Note: changing the video or bonuses of a live product sends it back for review.")}</p>` : ""}
+      ${course.status === "approved" ? `<p class="small muted">${tr("Atenção: alterar os bónus de um produto à venda envia-o de novo para revisão.", "Note: changing the bonuses of a live product sends it back for review.")}</p>` : ""}
       <div class="row-between"><a class="btn btn-ghost-dark" href="#/curso/${esc(id)}" target="_blank">${tr("Pré-visualizar página", "Preview page")}</a><button class="btn btn-green">${tr("Guardar", "Save")}</button></div></form>`);
     const f = document.getElementById("f");
-    const vPrev = () => { if (!f.promo_video_url) return; const u = f.promo_video_url.value.trim(); document.getElementById("vPrev").innerHTML = /^https:\/\//.test(u) ? `<div class="video vprev">${videoEmbed(u)}</div>` : ""; };
-    vPrev(); f.promo_video_url?.addEventListener("change", vPrev);
     const read = () => { f.querySelectorAll(".bon-row").forEach((r, i) => { bon[i] = { title: r.querySelector("[name=bt]").value, desc: r.querySelector("[name=bd]").value, value: r.querySelector("[name=bv]").value }; }); };
     const drawB = () => {
       document.getElementById("bonList").innerHTML = bon.map((b, i) => `<div class="bon-row" data-i="${i}">
@@ -747,12 +743,70 @@ export async function editor(main, { id }, query, alive) {
     document.getElementById("bonList").addEventListener("click", (e) => { const d = e.target.closest("[data-bdel]"); if (!d) return; read(); bon.splice(Number(d.dataset.bdel), 1); drawB(); dirty = true; });
     f.addEventListener("submit", async (e) => {
       e.preventDefault(); read();
-      const url = vidOk ? f.promo_video_url.value.trim() : "";
-      if (url && !/^https:\/\/\S+$/.test(url)) { toast(tr("O link do vídeo tem de começar por https://", "The video link must start with https://"), "err"); return; }
       const bonuses = bon.filter((b) => b.title.trim()).map((b) => ({ title: b.title.trim().slice(0, 100), desc: b.desc.trim().slice(0, 300), ...(Number(b.value) > 0 ? { value: Math.round(Number(b.value)) } : {}) }));
       const btn = f.querySelector("button.btn-green"); busy(btn, true);
       const was = course.status;
-      try { course = await api.updateCourse(id, { promo_video_url: url || null, bonuses }); dirty = false; saved(was === "approved" && course.status === "pending" ? tr("Guardado. O produto voltou para revisão.", "Saved. The product went back to review.") : tr("Guardado.", "Saved.")); go(`#/produtor/curso/${id}`); }
+      try { course = await api.updateCourse(id, { bonuses }); dirty = false; saved(was === "approved" && course.status === "pending" ? tr("Guardado. O produto voltou para revisão.", "Saved. The product went back to review.") : tr("Guardado.", "Saved.")); go(`#/produtor/curso/${id}`); }
+      catch (err) { toast(err.message, "err"); busy(btn, false); }
+    });
+    return;
+  }
+
+  if (sec === "garantia") {
+    const gd = gDays();
+    main.innerHTML = wrap(`<form id="f" class="form">
+      <label class="switch"><input type="checkbox" name="guarantee_enabled" ${course.guarantee_enabled ? "checked" : ""}><span>${tr(`Oferecer garantia de ${gd} dias ao comprador`, `Offer buyers a ${gd}-day guarantee`)}</span></label>
+      <div class="gar-cmp">
+        <div class="${course.guarantee_enabled ? "" : "on"}" data-g="0"><b>⚡ ${tr("Sem garantia (saque na hora)", "No guarantee (instant withdrawal)")}</b><small>${tr("O valor de cada venda entra logo no saldo disponível da tua Carteira e podes levantá-lo na hora.", "Each sale goes straight to your available balance and you can withdraw it right away.")}</small></div>
+        <div class="${course.guarantee_enabled ? "on" : ""}" data-g="1"><b>${ICON.shield} ${tr(`Com garantia de ${gd} dias`, `With a ${gd}-day guarantee`)}</b><small>${tr(`O selo de garantia aparece na página de venda e no checkout (dá mais confiança a quem compra). Em troca, o valor de cada venda fica retido ${gd} dias — o prazo em que o comprador pode pedir reembolso.`, `The guarantee badge shows on the sales page and checkout (more trust for buyers). In return, each sale is held for ${gd} days — the refund window.`)}</small></div>
+      </div>
+      <p class="small muted">${tr("Podes mudar quando quiseres. A escolha aplica-se às vendas feitas a partir desse momento.", "You can change this anytime. It applies to sales made from then on.")}</p>
+      <button class="btn btn-green">${tr("Guardar", "Save")}</button></form>`);
+    const f = document.getElementById("f");
+    f.guarantee_enabled.addEventListener("change", () => { f.querySelectorAll(".gar-cmp > div").forEach((el) => el.classList.toggle("on", el.dataset.g === (f.guarantee_enabled.checked ? "1" : "0"))); });
+    f.addEventListener("submit", async (e) => {
+      e.preventDefault(); const btn = f.querySelector("button.btn-green"); busy(btn, true);
+      try { course = await api.updateCourse(id, { guarantee_enabled: f.guarantee_enabled.checked }); dirty = false; saved(f.guarantee_enabled.checked ? tr(`Garantia de ${gd} dias activada.`, `${gd}-day guarantee turned on.`) : tr("Sem garantia: o dinheiro das vendas fica disponível na hora.", "No guarantee: sale money is available right away.")); go(`#/produtor/curso/${id}`); }
+      catch (err) { toast(err.message, "err"); busy(btn, false); }
+    });
+    return;
+  }
+
+  if (sec === "funil") {
+    const mine = (await api.myCourses(course.producer_id).catch(() => [])).filter((x) => x.id !== id && x.status === "approved");
+    if (!alive()) return;
+    const byId = new Map(mine.map((x) => [x.id, x]));
+    const opt = (cur) => `<option value="">${tr("— Nenhum —", "— None —")}</option>${mine.map((x) => `<option value="${esc(x.id)}" ${x.id === cur ? "selected" : ""}>${esc(x.title)} · ${esc(mzn(x.price_mzn))}</option>`).join("")}`;
+    const block = (k, title, desc, icon, ph) => `<div class="panel fun-box"><h3>${icon} ${title}</h3><p class="small muted">${desc}</p>
+      <label>${tr("Produto a oferecer", "Product to offer")}<select class="input" name="${k}_course_id">${opt(course[k + "_course_id"])}</select></label>
+      <div class="two">
+        <label>${tr("Preço especial (MZN)", "Special price (MZN)")}<input class="input" name="${k}_price_mzn" type="number" inputmode="numeric" min="20" step="1" value="${esc(course[k + "_price_mzn"] != null ? Math.round(course[k + "_price_mzn"]) : "")}" placeholder="${tr("ex.: 99", "e.g. 99")}"></label>
+        <label>${tr("Frase curta (opcional)", "Short line (optional)")}<input class="input" name="${k}_text" maxlength="140" value="${esc(course[k + "_text"] || "")}" placeholder="${esc(ph)}"></label>
+      </div></div>`;
+    main.innerHTML = wrap(`${mine.length ? "" : `<div class="alert">${tr("Precisas de pelo menos outro produto aprovado (à venda) para criar estas ofertas.", "You need at least one other approved product to create these offers.")}</div>`}
+      <form id="f" class="form">
+      ${block("bump", "Order bump", tr("Aparece no checkout deste produto como uma caixa «Sim, quero adicionar». O comprador paga tudo junto e recebe os dois produtos.", "Shown at this product's checkout as a “Yes, add this too” box. The buyer pays once and gets both products."), ICON.gift, tr("ex.: Leva também o modelo pronto a usar", "e.g. Also get the ready-to-use template"))}
+      ${block("upsell", "Upsell", tr("Aparece logo depois do pagamento confirmado (e na primeira visita à área de membros), com preço especial.", "Shown right after the payment is confirmed (and on the first visit to the members area), at a special price."), ICON.trend, tr("ex.: Dá o próximo passo com o curso avançado", "e.g. Take the next step with the advanced course"))}
+      ${block("downsell", "Downsell", tr("Se o comprador recusar o upsell, mostra esta oferta mais acessível.", "If the buyer declines the upsell, show this more affordable offer."), ICON.tag, tr("ex.: Começa pelo essencial", "e.g. Start with the essentials"))}
+      <p class="small muted">${tr("Os preços especiais têm de ser menores que o preço normal do produto oferecido (mínimo 20 MZN). Só produtos teus já aprovados.", "Special prices must be lower than the offered product's normal price (minimum 20 MZN). Only your approved products.")}</p>
+      <button class="btn btn-green">${tr("Guardar", "Save")}</button></form>`);
+    const f = document.getElementById("f");
+    f.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const fields = {};
+      for (const k of ["bump", "upsell", "downsell"]) {
+        const cid = f[k + "_course_id"].value || null, pv = f[k + "_price_mzn"].value ? Math.round(Number(f[k + "_price_mzn"].value)) : null, tx = f[k + "_text"].value.trim().slice(0, 140) || null;
+        if (cid) {
+          const target = byId.get(cid);
+          if (!target) { toast(tr("Escolhe um produto teu aprovado.", "Choose one of your approved products."), "err"); return; }
+          if (!(pv >= 20)) { toast(tr(`Escreve o preço especial (mínimo 20 MZN) para «${target.title}».`, `Enter the special price (min 20 MZN) for “${target.title}”.`), "err"); f[k + "_price_mzn"].focus(); return; }
+          if (pv >= Number(target.price_mzn)) { toast(tr(`O preço especial de «${target.title}» tem de ser menor que ${mzn(target.price_mzn)}.`, `The special price for “${target.title}” must be lower than ${mzn(target.price_mzn)}.`), "err"); f[k + "_price_mzn"].focus(); return; }
+        }
+        fields[k + "_course_id"] = cid; fields[k + "_price_mzn"] = cid ? pv : null; fields[k + "_text"] = cid ? tx : null;
+      }
+      if (fields.upsell_course_id && fields.upsell_course_id === fields.downsell_course_id) { toast(tr("O downsell tem de ser um produto diferente do upsell.", "The downsell must be a different product from the upsell."), "err"); return; }
+      const btn = f.querySelector("button.btn-green"); busy(btn, true);
+      try { course = await api.updateCourse(id, fields); dirty = false; saved(tr("Ofertas guardadas.", "Offers saved.")); go(`#/produtor/curso/${id}`); }
       catch (err) { toast(err.message, "err"); busy(btn, false); }
     });
     return;

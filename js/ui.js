@@ -12,7 +12,7 @@ export const state = {
   user: null,
   profile: null,
   roles: [],
-  settings: { rates: { MZN: 1, USD: 64, BRL: 11.5, ZAR: 3.6, EUR: 72 }, commission_pct: 10, guarantee_days: 3 },
+  settings: { rates: { MZN: 1, USD: 64, BRL: 11.5, ZAR: 3.6, EUR: 72 }, commission_pct: CONFIG.COMMISSION_PCT, guarantee_days: 3 },
   lang: saved("uq_lang", "pt"),
   currency: saved("uq_cur", "MZN"),
   country: "",
@@ -53,6 +53,16 @@ export const isAdmin = () => state.roles.includes("admin");
 // Suporte ao comprador completo (WhatsApp + email) — obrigatório para vender
 export const supportOk = (c) => String(c?.support_whatsapp || "").replace(/\D/g, "").length >= 9 && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(c?.support_email || "").trim());
 export const gDays = () => Number(state.settings.guarantee_days ?? 3);
+// Garantia: só nos produtos em que o produtor a activou (sem garantia, o dinheiro da venda fica disponível na hora)
+export const hasGuarantee = (c) => Boolean(c?.guarantee_enabled) && gDays() > 0;
+// Comissão da plataforma (%)
+export const pctFee = () => Number(state.settings.commission_pct ?? CONFIG.COMMISSION_PCT);
+// WhatsApp do suporte da plataforma: o das definições ou, se faltar, o número fixo da configuração
+export const supportWa = () => {
+  const s = typeof state.settings.support_whatsapp === "string" ? state.settings.support_whatsapp.replace(/\D/g, "") : "";
+  return s.length >= 9 ? s : String(CONFIG.SUPPORT_WHATSAPP || "").replace(/\D/g, "");
+};
+export const supportWaText = () => (typeof state.settings.support_whatsapp === "string" && state.settings.support_whatsapp.replace(/\D/g, "").length >= 9 ? state.settings.support_whatsapp : `+${supportWa()}`);
 
 export function setLang(l, manual = true) { state.lang = l; if (manual) { save("uq_lang", l); state.langChosen = true; } document.documentElement.lang = l; }
 export function setCurrency(c) { state.currency = c; save("uq_cur", c); state.curChosen = true; }

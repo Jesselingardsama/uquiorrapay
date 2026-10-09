@@ -2,7 +2,7 @@
 import { api } from "../api.js?v=202610080932";
 import { supportBox } from "./account.js?v=202610080932";
 import { viewContent } from "../track.js?v=202610080932";
-import { state, tr, esc, mzn, money, courseCard, coverHTML, priceHTML, offerPriceHTML, hasStrike, cleanBonuses, videoEmbed, langLabel, ICON, emptyState, isAdmin, isProducer, toast, photo, PHOTOS, catPhoto, catLabel, catOptions, supportOk, saveRef, getRef, gDays, TYPES, typeLabel, unitLabel, CONFIG, intlPrice, usdFmt, curPrice, usdRate, isSponsored } from "../ui.js?v=202610080932";
+import { state, tr, esc, mzn, money, courseCard, coverHTML, priceHTML, offerPriceHTML, hasStrike, cleanBonuses, videoEmbed, langLabel, ICON, emptyState, isAdmin, isProducer, toast, photo, PHOTOS, catPhoto, catLabel, catOptions, supportOk, saveRef, getRef, gDays, TYPES, typeLabel, unitLabel, CONFIG, intlPrice, usdFmt, curPrice, usdRate, isSponsored, supportWa, supportWaText, hasGuarantee } from "../ui.js?v=202610080932";
 
 
 // ---------- Início (modelo escolhido pelo utilizador) ----------
@@ -118,7 +118,7 @@ export async function home(main, _p, _q, alive) {
       <div class="uh-card-b">
         <span class="uh-tag">${tr("Para quem compra", "For buyers")}</span>
         <h2>${tr("Aprende ao teu ritmo, onde estiveres", "Learn at your pace, wherever you are")}</h2>
-        <ul>${tick2(tr("Acesso imediato depois do pagamento", "Instant access after payment"))}${tick2(tr(`Garantia de ${gDays()} dias`, `${gDays()}-day guarantee`))}${tick2(tr("PayPal, cartão, M-Pesa ou e-Mola", "PayPal, card, M-Pesa or e-Mola"))}</ul>
+        <ul>${tick2(tr("Acesso imediato depois do pagamento", "Instant access after payment"))}${tick2(tr("Pagamento seguro e suporte no WhatsApp", "Secure payment and WhatsApp support"))}${tick2(tr("PayPal, cartão, M-Pesa ou e-Mola", "PayPal, card, M-Pesa or e-Mola"))}</ul>
         <a class="btn btn-green" href="#/cursos">${tr("Ver produtos", "Browse products")} ${ICON.arrow}</a>
       </div>
     </article>
@@ -334,7 +334,7 @@ export async function course(main, { id }, query, alive) {
   const learn = lines(c.learn_points), audience = lines(c.audience), reqs = lines(c.requirements);
   const bg = c.cover_url || catPhoto(c.category, 1600);
   const initial = esc((c.producer_name || "U")[0].toUpperCase());
-  // Vídeo de apresentação só em cursos e áudios; ebooks e templates mostram a capa
+  // Ebooks e templates mostram a capa no topo; cursos e áudios mostram-na na caixa de compra
   const hasVideo = ["curso", "audio"].includes(c.product_type || "curso");
   // Descrição limitada a 500 caracteres (as antigas mais longas são cortadas)
   const rawDesc = String(c.description || "").trim();
@@ -348,7 +348,7 @@ export async function course(main, { id }, query, alive) {
       <h1>${esc(c.title)}</h1>
       ${c.subtitle ? `<p class="lead">${esc(c.subtitle)}</p>` : ""}
       <div class="facts"><span class="by"><b class="mini-av">${initial}</b>${esc(c.producer_name || "Uquiorrapay")}</span><span>${ICON.play} ${esc(unitLabel(c.product_type, lessons))}</span>${mins ? `<span>${ICON.clock} ${dur}</span>` : ""}${students ? `<span>${ICON.users} ${students} ${tr("alunos", "students")}</span>` : ""}<span class="chip-lang">${esc(langLabel(c.language))}</span></div>
-      ${hasVideo && c.promo_video_url ? `<div class="ch-video video">${videoEmbed(c.promo_video_url)}</div>` : !hasVideo && c.cover_url ? `<div class="ch-cover"><img src="${esc(c.cover_url)}" alt="${esc(c.title)}" loading="eager"></div>` : ""}
+      ${!hasVideo && c.cover_url ? `<div class="ch-cover"><img src="${esc(c.cover_url)}" alt="${esc(c.title)}" loading="eager"></div>` : ""}
     </div>
   </section>
   <section class="container course-body">
@@ -368,7 +368,7 @@ export async function course(main, { id }, query, alive) {
         ${audience.length ? `<div class="panel"><h3>${tr("Para quem é", "Who it's for")}</h3><ul class="ticks">${audience.map((x) => `<li>${ICON.check}<span>${esc(x)}</span></li>`).join("")}</ul></div>` : ""}
         ${reqs.length ? `<div class="panel"><h3>${tr("Requisitos", "Requirements")}</h3><ul class="dots">${reqs.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>` : ""}
       </div>` : ""}
-      <div class="guarantee">${ICON.shield}<div><h3>${tr(`Garantia de ${gDays()} dias`, `${gDays()}-day guarantee`)}</h3><p>${tr(`Se o produto não for para ti, pedes o reembolso até ${gDays()} dias depois da compra (desde que não tenhas visto mais de 20% do conteúdo).`, `If it isn't for you, ask for a refund within ${gDays()} days of purchase (as long as you've used no more than 20% of the content).`)}</p></div></div>
+      ${hasGuarantee(c) ? `<div class="guarantee">${ICON.shield}<div><h3>${tr(`Garantia de ${gDays()} dias`, `${gDays()}-day guarantee`)}</h3><p>${tr(`Se o produto não for para ti, pedes o reembolso até ${gDays()} dias depois da compra (desde que não tenhas visto mais de 20% do conteúdo).`, `If it isn't for you, ask for a refund within ${gDays()} days of purchase (as long as you've used no more than 20% of the content).`)}</p></div></div>` : ""}
       ${supportBox(c)}
       <div class="producer-box"><span class="big-av">${initial}</span><div><small class="muted">${tr("Produtor", "Creator")}</small><h3>${esc(c.producer_name || "Uquiorrapay")}</h3><p class="muted small">${tr("Curso revisto e aprovado pela equipa Uquiorrapay.", "Course reviewed and approved by the Uquiorrapay team.")}</p></div></div>
       <h2>${tr("Perguntas frequentes", "FAQ")}</h2>
@@ -379,7 +379,7 @@ export async function course(main, { id }, query, alive) {
       </div>
       ${showCta ? `<div class="end-cta"><h2>${enrolled ? tr("Continua a aprender", "Keep learning") : tr("Começa hoje mesmo", "Start today")}</h2>
         <p class="muted">${esc(c.title)}</p>${enrolled ? "" : offerPriceHTML(c, "big")}<div class="end-cta-btn">${action}</div>
-        ${enrolled ? "" : `<p class="small muted">${ICON.shield} ${tr(`Garantia de ${gDays()} dias · Acesso imediato após a confirmação`, `${gDays()}-day guarantee · Instant access after confirmation`)}</p>`}</div>` : ""}
+        ${enrolled ? "" : `<p class="small muted">${ICON.shield} ${hasGuarantee(c) ? tr(`Garantia de ${gDays()} dias · Acesso imediato após a confirmação`, `${gDays()}-day guarantee · Instant access after confirmation`) : tr("Pagamento seguro · Acesso imediato após a confirmação", "Secure payment · Instant access after confirmation")}</p>`}</div>` : ""}
     </div>
     <aside class="buy-box">
       ${coverHTML(c, "sm")}
@@ -389,7 +389,7 @@ export async function course(main, { id }, query, alive) {
         ${bonuses.length ? `<p class="bb-bonus">${ICON.gift} ${tr(`+ ${bonuses.length} bónus incluído${bonuses.length > 1 ? "s" : ""}`, `+ ${bonuses.length} bonus${bonuses.length > 1 ? "es" : ""} included`)}</p>` : ""}
         ${query.cupao && canBuy ? `<div class="coupon-note">${ICON.tag} ${tr("Cupão", "Coupon")} <b>${esc(query.cupao.toUpperCase())}</b> ${tr("aplicado no checkout", "applied at checkout")}</div>` : ""}
         ${action}
-        <ul class="ticks"><li>${ICON.check}${tr("Acesso logo após a confirmação", "Access right after confirmation")}</li><li>${ICON.check}${tr(`Garantia de ${gDays()} dias`, `${gDays()}-day guarantee`)}</li><li>${ICON.check}${tr("Estuda no telemóvel ou computador", "Learn on phone or computer")}</li><li>${ICON.check}${tr("Curso revisto pela nossa equipa", "Reviewed by our team")}</li></ul>
+        <ul class="ticks"><li>${ICON.check}${tr("Acesso logo após a confirmação", "Access right after confirmation")}</li>${hasGuarantee(c) ? `<li>${ICON.check}${tr(`Garantia de ${gDays()} dias`, `${gDays()}-day guarantee`)}</li>` : ""}<li>${ICON.check}${tr("Estuda no telemóvel ou computador", "Learn on phone or computer")}</li><li>${ICON.check}${tr("Curso revisto pela nossa equipa", "Reviewed by our team")}</li></ul>
         ${c.affiliate_enabled && c.status === "approved" && !owner ? `<a class="aff-link" href="#/afiliados?curso=${esc(id)}">${ICON.link} ${tr(`Promove este curso e ganha ${Number(c.affiliate_pct)}%`, `Promote this course and earn ${Number(c.affiliate_pct)}%`)}</a>` : ""}
       </div>
     </aside>
@@ -434,7 +434,8 @@ export async function forProducers(main, _p, _q, alive) {
   <section class="mn-feats container">
     <div><span>${ICON.doc}</span><b>${tr("Página de venda automática", "Automatic sales page")}</b><p>${tr("Carregas o produto e a página fica pronta: vídeo, bónus, garantia e botão de compra.", "Upload your product and the page is ready: video, bonuses, guarantee and buy button.")}</p></div>
     <div><span>${ICON.bolt}</span><b>${tr("Entrega imediata", "Instant delivery")}</b><p>${tr("O cliente paga e o produto aparece logo na área de membros dele.", "The customer pays and the product shows up in their members area.")}</p></div>
-    <div><span>${ICON.trend}</span><b>${tr("Painel em tempo real", "Real-time dashboard")}</b><p>${tr("Vê vendas, perguntas dos alunos e saldo, e pede o levantamento quando quiseres.", "See sales, student questions and balance, and withdraw whenever you want.")}</p></div>
+    <div><span>${ICON.trend}</span><b>${tr("Painel em tempo real", "Real-time dashboard")}</b><p>${tr("Vê vendas, perguntas dos alunos e saldo. Saque na hora: o dinheiro fica disponível logo após cada venda (só fica retido se ofereceres garantia).", "See sales, student questions and balance. Instant withdrawal: money is available right after each sale (only held if you offer a guarantee).")}</p></div>
+    <div><span>${ICON.gift}</span><b>${tr("Order bump, upsell e downsell", "Order bump, upsell & downsell")}</b><p>${tr("Oferece um produto extra no checkout e ofertas especiais logo depois do pagamento. Vende mais a cada cliente.", "Offer an extra product at checkout and special offers right after payment. Sell more to every customer.")}</p></div>
     <div><span>${ICON.link}</span><b>${tr("Afiliados e cupões", "Affiliates & coupons")}</b><p>${tr("Outras pessoas vendem por ti em troca de comissão, e tu crias promoções.", "Others sell for you for a commission, and you run promotions.")}</p></div>
   </section>
   <section class="container mn-calc-wrap">
@@ -449,6 +450,12 @@ export async function forProducers(main, _p, _q, alive) {
     </div>
     <p class="mk-pay">${tr("Os teus clientes pagam com", "Your customers pay with")}: <b>${payMethods().map(([n]) => n).join(" · ")}</b></p>
   </section>
+  <section class="container"><div class="panel saas-soon" id="saas">
+    <span class="soon-tag">${tr("Em desenvolvimento", "In development")}</span>
+    <h2>Uquiorrapay SaaS</h2>
+    <p>${tr("Em breve: a tua própria plataforma de cursos com o teu domínio e a tua marca, com tudo o que já tens aqui — checkout, área de membros, afiliados, order bump, upsell e pagamentos por M-Pesa, e-Mola, PayPal e cartão.", "Coming soon: your own course platform on your domain and brand, with everything you already have here — checkout, members area, affiliates, order bump, upsell and payments by M-Pesa, e-Mola, PayPal and card.")}</p>
+    <a class="btn btn-soft" href="#/saas">${tr("Saber mais", "Learn more")} ${ICON.arrow}</a>
+  </div></section>
   <section class="mn-end"><div class="container">
     <h2>${tr("Pronto para a tua primeira venda?", "Ready for your first sale?")}</h2>
     <a class="btn btn-primary btn-lg" href="${target}">${tr("Começar agora", "Start now")} ${ICON.arrow}</a>
@@ -491,7 +498,7 @@ export async function terms(main) {
     <li><b>Preços.</b> Cada produto tem dois preços definidos pelo produtor: um em dólares (USD), cobrado nos pagamentos internacionais (PayPal e cartão), e outro em meticais (MZN), cobrado no M-Pesa e e-Mola. Valores noutras moedas são aproximados.</li>
     <li><b>Comissão.</b> A Uquiorrapay retém ${pct}% de cada venda. O restante pertence ao produtor.</li>
     <li><b>Acesso aos cursos.</b> Depois de confirmada a compra, o aluno tem acesso ao curso enquanto este estiver disponível na plataforma. É proibido partilhar, copiar ou revender o conteúdo.</li>
-    <li><b>Reembolsos.</b> O aluno pode pedir reembolso até ${gDays()} dias após a compra, se não tiver assistido a mais de 20% do curso.</li>
+    <li><b>Reembolsos.</b> Nos produtos em que o produtor oferece garantia (indicada na página de venda e no checkout), o aluno pode pedir reembolso até ${gDays()} dias após a compra, se não tiver assistido a mais de 20% do conteúdo. Nos restantes produtos a venda é final, salvo falha de entrega do conteúdo.</li>
     <li><b>Certificados.</b> Quando disponíveis, os certificados comprovam a conclusão do curso na plataforma; não são diplomas oficiais.</li>
     <li><b>Verificação, conformidade e segurança (KYC/AML).</b> Para garantir a segurança, prevenir fraude e cumprir obrigações legais (incluindo as regras contra o branqueamento de capitais), a Uquiorrapay pode pedir documentos e informações adicionais — por exemplo, documento de identificação, comprovativos de morada e confirmação da titularidade das contas de recebimento. Enquanto investiga situações atípicas, pode aplicar medidas preventivas, como limitar funcionalidades, reter valores temporariamente ou bloquear levantamentos. O utilizador autoriza a Uquiorrapay a verificar estes dados junto de parceiros de pagamento e prestadores tecnológicos, apenas na medida necessária para prestar o serviço e gerir o risco.</li>
     <li><b>Levantamentos.</b> O prazo máximo de processamento de um levantamento é de até ${kDays()} dias, podendo variar por exigências operacionais, validações de segurança, indisponibilidade do parceiro de pagamento, feriados ou força maior. Só são feitos levantamentos para contas em nome do titular verificado.</li>
@@ -507,7 +514,7 @@ export async function terms(main) {
     <li><b>Prices.</b> Each product has two prices set by the creator: one in US dollars (USD), charged for international payments (PayPal and card), and one in Mozambican meticals (MZN), charged via M-Pesa and e-Mola. Amounts in other currencies are approximate.</li>
     <li><b>Commission.</b> Uquiorrapay keeps ${pct}% of each sale. The rest belongs to the producer.</li>
     <li><b>Course access.</b> Once the purchase is confirmed, the student has access to the course while it remains on the platform. Sharing, copying or reselling the content is not allowed.</li>
-    <li><b>Refunds.</b> Students may request a refund within ${gDays()} days of purchase if they have watched no more than 20% of the course.</li>
+    <li><b>Refunds.</b> On products where the creator offers a guarantee (shown on the sales page and at checkout), students may request a refund within ${gDays()} days of purchase if they have used no more than 20% of the content. On other products the sale is final, except when the content is not delivered.</li>
     <li><b>Certificates.</b> When available, certificates confirm course completion on the platform; they are not official diplomas.</li>
     <li><b>Verification, compliance and security (KYC/AML).</b> To keep the platform safe, prevent fraud and meet legal obligations (including anti-money-laundering rules), Uquiorrapay may request documents and additional information — e.g. ID, proof of address and proof of ownership of payout accounts. While investigating unusual activity it may apply preventive measures such as limiting features, temporarily holding funds or blocking withdrawals. Users authorise Uquiorrapay to verify this data with payment partners and technology providers, only as needed to provide the service and manage risk.</li>
     <li><b>Withdrawals.</b> Withdrawals are processed within up to ${kDays()} days; this may vary due to operational requirements, security checks, payment partner downtime, holidays or force majeure. Payouts are only made to accounts in the verified holder's name.</li>
@@ -546,7 +553,7 @@ export async function privacy(main) {
 export async function contact(main) {
   const s = state.settings;
   const email = (typeof s.support_email === "string" && s.support_email) || "uquiorrapostsa@gmail.com";
-  const wa = typeof s.support_whatsapp === "string" ? s.support_whatsapp : "";
+  const wa = supportWaText();
   textPage(main, tr("Contacto", "Contact"), `
     <p>${tr("Tens uma dúvida sobre um curso, uma compra ou queres começar a vender? Fala connosco. Se for sobre uma compra, indica a referência do pedido.",
       "Have a question about a course, a purchase, or want to start selling? Get in touch. If it's about a purchase, please include your order reference.")}</p>
@@ -555,6 +562,23 @@ export async function contact(main) {
       ${wa ? `<a class="panel contact" href="https://wa.me/${esc(wa.replace(/\D/g, ""))}" target="_blank" rel="noopener"><b>WhatsApp</b><span>${esc(wa)}</span></a>` : ""}
     </div>
     <p class="muted">${tr("Segunda a sexta, 8h–17h (GMT+2). Respondemos até 24 horas úteis.", "Monday to Friday, 8am–5pm (GMT+2). We reply within 1 business day.")}</p>`);
+}
+
+// SaaS (plataforma própria para cada produtor): em desenvolvimento
+export async function saasPage(main) {
+  const wa = supportWa();
+  const msg = encodeURIComponent(tr("Olá! Quero ser avisado quando o Uquiorrapay SaaS estiver disponível.", "Hi! I want to be notified when Uquiorrapay SaaS is available."));
+  textPage(main, "Uquiorrapay SaaS", `
+    <p><span class="soon-tag">${tr("Em desenvolvimento · brevemente", "In development · coming soon")}</span></p>
+    <p>${tr("Estamos a construir o Uquiorrapay SaaS: a tua própria plataforma de venda de cursos, ebooks e templates, com o teu domínio, a tua marca e as tuas regras — sem programar.", "We're building Uquiorrapay SaaS: your own platform to sell courses, ebooks and templates, on your domain, with your brand and your rules — no coding.")}</p>
+    <ul class="saas-list">
+      <li>${ICON.check}<span>${tr("Loja e páginas de venda com a tua marca e domínio", "Store and sales pages with your brand and domain")}</span></li>
+      <li>${ICON.check}<span>${tr("Checkout com M-Pesa, e-Mola, PayPal e cartão", "Checkout with M-Pesa, e-Mola, PayPal and card")}</span></li>
+      <li>${ICON.check}<span>${tr("Área de membros, afiliados, cupões, order bump, upsell e downsell", "Members area, affiliates, coupons, order bump, upsell and downsell")}</span></li>
+      <li>${ICON.check}<span>${tr("Saque na hora e painel em tempo real", "Instant withdrawal and real-time dashboard")}</span></li>
+    </ul>
+    <p class="muted">${tr("Ainda não há data de lançamento. Entretanto, podes vender normalmente na Uquiorrapay.", "No launch date yet. In the meantime, you can sell as usual on Uquiorrapay.")}</p>
+    <div class="order-actions">${wa ? `<a class="btn btn-primary" href="https://wa.me/${esc(wa)}?text=${msg}" target="_blank" rel="noopener">${ICON.whats} ${tr("Quero ser avisado", "Notify me")}</a>` : ""}<a class="btn btn-ghost-dark" href="#/para-produtores">${tr("Vender na Uquiorrapay", "Sell on Uquiorrapay")}</a></div>`);
 }
 
 export function notFound() {

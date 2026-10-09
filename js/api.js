@@ -152,7 +152,7 @@ async function xhrUpload(bucket, path, blob, contentType, onProgress, { upsert =
   }
 }
 
-const COURSE_COLS = "id,producer_id,producer_name,title,subtitle,description,cover_url,category,language,price_mzn,status,rejection_reason,featured,product_type,affiliate_enabled,affiliate_pct,learn_points,requirements,audience,support_email,support_whatsapp,support_info,promo_video_url,compare_price_mzn,bonuses,price_usd,sponsored_until,created_at,updated_at,submitted_at,approved_at,meta_pixel_id";
+const COURSE_COLS = "id,producer_id,producer_name,title,subtitle,description,cover_url,category,language,price_mzn,status,rejection_reason,featured,product_type,affiliate_enabled,affiliate_pct,learn_points,requirements,audience,support_email,support_whatsapp,support_info,promo_video_url,compare_price_mzn,bonuses,price_usd,sponsored_until,created_at,updated_at,submitted_at,approved_at,meta_pixel_id,guarantee_enabled,bump_course_id,bump_price_mzn,bump_text,upsell_course_id,upsell_price_mzn,upsell_text,downsell_course_id,downsell_price_mzn,downsell_text";
 
 export const api = {
   // ---------- Sessão ----------
@@ -326,8 +326,9 @@ export const api = {
     const rows = ok(await sb.from("lessons").select("id,title").in("id", ids));
     return Object.fromEntries(rows.map((r) => [r.id, r.title]));
   },
-  async createOrder({ course_id, payment_method, payer_phone, coupon_code = null, affiliate_code = null }) {
-    return ok(await sb.from("orders").insert({ course_id, payment_method, payer_phone, coupon_code, affiliate_code }).select("*").single());
+  // bump_course_id: order bump escolhido no checkout; offer_kind/offer_from: upsell ou downsell depois de uma compra
+  async createOrder({ course_id, payment_method, payer_phone, coupon_code = null, affiliate_code = null, bump_course_id = null, offer_kind = null, offer_from = null }) {
+    return ok(await sb.from("orders").insert({ course_id, payment_method, payer_phone, coupon_code, affiliate_code, bump_course_id, offer_kind, offer_from }).select("*").single());
   },
   async myOrders(uid) {
     return ok(await sb.from("orders").select("*, courses(title)").eq("buyer_id", uid).order("created_at", { ascending: false }));

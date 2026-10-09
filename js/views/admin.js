@@ -56,6 +56,7 @@ async function resumo(box, _q, alive) {
   if (!(sets.payment_emola?.number)) alerts.push([tr("Falta o número e-Mola para pagamentos manuais.", "e-Mola number for manual payments is missing."), "#/admin/definicoes", tr("Preencher", "Fill in")]);
   { const g = sets.gateway || {}; if (!g.paysuite_enabled && !g.pagar_enabled && !g.e2_enabled) alerts.push([tr("Nenhum pagamento automático ligado (PaySuite, Pagar.co.mz ou e2Payments). Os clientes pagam pelo método manual.", "No automatic payment enabled (PaySuite, Pagar.co.mz or e2Payments). Customers pay manually."), "#/admin/definicoes", tr("Abrir", "Open")]); }
   if (!sets.support_whatsapp) alerts.push([tr("Falta o WhatsApp de apoio ao cliente.", "Customer support WhatsApp is missing."), "#/admin/definicoes", tr("Preencher", "Fill in")]);
+  { const g = sets.gateway || {}; if (g.pagar_enabled && gws && !(gws.pagar_api_key_set && gws.pagar_signing_secret_set)) alerts.push([tr("A Pagar.co.mz está ligada mas falta a chave da API ou o segredo de assinatura — os pagamentos automáticos falham.", "Pagar.co.mz is on but the API key or signing secret is missing — automatic payments fail."), "#/admin/definicoes", tr("Corrigir", "Fix")]); }
   // Últimos 30 dias vs 30 anteriores (pagamentos confirmados)
   const DAY = 864e5, now = Date.now(), tOf = (o) => new Date(o.paid_at || o.created_at).getTime();
   const p30 = paidOrders.filter((o) => now - tOf(o) < 30 * DAY), pPrev = paidOrders.filter((o) => now - tOf(o) >= 30 * DAY && now - tOf(o) < 60 * DAY);
@@ -449,8 +450,9 @@ async function definicoes(box, _q, alive) {
   const ai = s.ai || {};
   box.innerHTML = `<form id="sf" class="form settings">
     <div class="panel"><h3>${tr("Comissão e garantia", "Commission & guarantee")}</h3>
-      <label>${tr("Dias de garantia para quem compra", "Buyer guarantee days")}<input class="input" name="guarantee_days" type="number" min="0" max="60" value="${esc(s.guarantee_days ?? 3)}"></label>
-      <label>${tr("Comissão da plataforma (%)", "Platform commission (%)")}<input class="input" name="commission_pct" type="number" min="0" max="90" step="0.5" value="${esc(s.commission_pct ?? 10)}"></label></div>
+      <label>${tr("Dias de garantia (só nos produtos em que o produtor activa a garantia)", "Guarantee days (only on products where the creator turns it on)")}<input class="input" name="guarantee_days" type="number" min="0" max="60" value="${esc(s.guarantee_days ?? 3)}"></label>
+      <p class="small muted">${tr("Sem garantia, o valor da venda fica disponível na hora na carteira do produtor. Com garantia, fica retido estes dias.", "Without a guarantee, the sale amount is available right away in the creator's wallet. With a guarantee, it is held for these days.")}</p>
+      <label>${tr("Comissão da plataforma (%)", "Platform commission (%)")}<input class="input" name="commission_pct" type="number" min="0" max="90" step="0.5" value="${esc(s.commission_pct ?? 9.5)}"></label></div>
     <div class="panel"><h3>${tr("Câmbios (quantos MZN vale 1 unidade)", "Exchange rates (MZN per unit)")}</h3>
       <div class="three">${["USD", "BRL", "ZAR", "EUR"].map((c) => `<label>1 ${c} =<input class="input" name="rate_${c}" type="number" step="0.01" min="0.01" value="${esc(rates[c] ?? "")}"></label>`).join("")}</div></div>
     <div class="panel"><h3>${tr("Receber pagamentos", "Receiving payments")}</h3>
@@ -515,7 +517,7 @@ async function definicoes(box, _q, alive) {
       })()}
     </div>
     <div class="panel"><h3>${tr("Carteira e levantamentos", "Wallet & withdrawals")}</h3>
-      <div class="two"><label>${tr("Dias em espera após a venda", "Hold days after a sale")}<input class="input" name="payout_hold_days" type="number" min="0" max="60" value="${esc(s.payout_hold_days ?? 3)}"></label>
+      <div class="two"><label>${tr("Dias extra de retenção para todas as vendas (0 = saque na hora)", "Extra hold days for all sales (0 = instant withdrawal)")}<input class="input" name="payout_hold_days" type="number" min="0" max="60" value="${esc(s.payout_hold_days ?? 0)}"></label>
       <label>${tr("Levantamento mínimo (MZN)", "Minimum withdrawal (MZN)")}<input class="input" name="min_withdrawal" type="number" min="0" step="50" value="${esc(s.min_withdrawal ?? 500)}"></label></div></div>
     <div class="panel"><h3>${tr("Apoio ao cliente", "Customer support")}</h3>
       <div class="two"><label>WhatsApp<input class="input" name="support_whatsapp" placeholder="+258 84 000 0000" value="${esc(s.support_whatsapp || "")}"></label><label>Email<input class="input" name="support_email" type="email" value="${esc(s.support_email || "")}"></label></div>
