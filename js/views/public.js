@@ -1,8 +1,8 @@
 // Páginas públicas: início, catálogo, curso, como funciona, institucionais.
-import { api } from "../api.js?v=202610080932";
-import { supportBox } from "./account.js?v=202610080932";
-import { viewContent } from "../track.js?v=202610080932";
-import { state, tr, esc, mzn, money, courseCard, coverHTML, priceHTML, offerPriceHTML, hasStrike, cleanBonuses, videoEmbed, langLabel, ICON, emptyState, isAdmin, isProducer, toast, photo, PHOTOS, catPhoto, catLabel, catOptions, supportOk, saveRef, getRef, gDays, TYPES, typeLabel, unitLabel, CONFIG, intlPrice, usdFmt, curPrice, usdRate, isSponsored, supportWa, supportWaText, hasGuarantee } from "../ui.js?v=202610080932";
+import { api } from "../api.js?v=202610091700";
+import { supportBox } from "./account.js?v=202610091700";
+import { viewContent } from "../track.js?v=202610091700";
+import { state, tr, esc, mzn, money, courseCard, coverHTML, priceHTML, offerPriceHTML, hasStrike, cleanBonuses, videoEmbed, langLabel, ICON, emptyState, isAdmin, isProducer, toast, photo, PHOTOS, catPhoto, catLabel, catOptions, supportOk, saveRef, getRef, gDays, TYPES, typeLabel, unitLabel, CONFIG, intlPrice, usdFmt, curPrice, usdRate, isSponsored, supportWa, supportWaText, hasGuarantee } from "../ui.js?v=202610091700";
 
 
 // ---------- Início (modelo escolhido pelo utilizador) ----------

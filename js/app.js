@@ -1,16 +1,16 @@
 // Arranque, navegação (router), barra de topo, menu e rodapé.
-import { api } from "./api.js?v=202610080932";
-import { state, tr, esc, isProducer, isAdmin, setLang, setCurrency, initLocale, brandHTML, ICON, toast, loading, errorBox, appMenuHTML, activeKey, CONFIG, supportWa } from "./ui.js?v=202610080932";
-import * as pub from "./views/public.js?v=202610080932";
-import { initTracking, pageView } from "./track.js?v=202610080932";
-import * as acc from "./views/account.js?v=202610080932";
-import * as prod from "./views/producer.js?v=202610080932";
-import * as adm from "./views/admin.js?v=202610080932";
-import * as wal from "./views/wallet.js?v=202610080932";
-import * as sec from "./views/security.js?v=202610080932";
-import { mountAssistant } from "./assistant.js?v=202610080932";
-import * as kyc from "./views/kyc.js?v=202610080932";
-import * as onb from "./views/onboarding.js?v=202610080932";
+import { api } from "./api.js?v=202610091700";
+import { state, tr, esc, isProducer, isAdmin, setLang, setCurrency, initLocale, brandHTML, ICON, toast, loading, errorBox, appMenuHTML, activeKey, CONFIG, supportWa } from "./ui.js?v=202610091700";
+import * as pub from "./views/public.js?v=202610091700";
+import { initTracking, pageView } from "./track.js?v=202610091700";
+import * as acc from "./views/account.js?v=202610091700";
+import * as prod from "./views/producer.js?v=202610091700";
+import * as adm from "./views/admin.js?v=202610091700";
+import * as wal from "./views/wallet.js?v=202610091700";
+import * as sec from "./views/security.js?v=202610091700";
+import { mountAssistant } from "./assistant.js?v=202610091700";
+import * as kyc from "./views/kyc.js?v=202610091700";
+import * as onb from "./views/onboarding.js?v=202610091700";
 
 // Regresso do link do email (confirmação de conta): o Supabase lê os dados do endereço
 let fromEmailLink = /type=(signup|email|magiclink)/.test(location.hash);

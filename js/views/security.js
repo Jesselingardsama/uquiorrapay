@@ -1,8 +1,8 @@
 // Segurança da conta: verificação em 2 passos (códigos de 6 dígitos), últimos acessos, sessões
 // e registo de segurança da administração.
-import { api } from "../api.js?v=202610080932";
-import { state, tr, esc, toast, dashShell, ICON, dateTime, modal, copyText, brandHTML, isAdmin, loading, errorBox } from "../ui.js?v=202610080932";
-import { go, refreshUser, rerender } from "../app.js?v=202610080932";
+import { api } from "../api.js?v=202610091700";
+import { state, tr, esc, toast, dashShell, ICON, dateTime, modal, copyText, brandHTML, isAdmin, loading, errorBox } from "../ui.js?v=202610091700";
+import { go, refreshUser, rerender } from "../app.js?v=202610091700";
 
 const ACTIONS = () => ({
   login: tr("Entrada na conta", "Sign-in"),

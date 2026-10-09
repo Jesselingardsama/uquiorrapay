@@ -1,9 +1,9 @@
 // Conta: entrar, registar, perfil, checkout, os meus cursos, aulas e pedido para ser produtor.
-import { api } from "../api.js?v=202610080932";
-import { initiateCheckout, purchase, registration } from "../track.js?v=202610080932";
-import { state, tr, esc, mzn, money, priceHTML, offerPriceHTML, hasStrike, cleanBonuses, coverHTML, videoEmbed, toast, modal, emptyState, errorBox, statusBadge, methodLabel, date, ICON, isProducer, isAdmin, loading, dashShell, getRef, gDays, supportOk, brandHTML, copyText, CONFIG, intlPrice, usdFmt, usdRate, supportWa, hasGuarantee } from "../ui.js?v=202610080932";
-import { go, refreshUser, rerender } from "../app.js?v=202610080932";
-import { mountCaptcha, captchaOn } from "../captcha.js?v=202610080932";
+import { api } from "../api.js?v=202610091700";
+import { initiateCheckout, purchase, registration } from "../track.js?v=202610091700";
+import { state, tr, esc, mzn, money, priceHTML, offerPriceHTML, hasStrike, cleanBonuses, coverHTML, videoEmbed, toast, modal, emptyState, errorBox, statusBadge, methodLabel, date, ICON, isProducer, isAdmin, loading, dashShell, getRef, gDays, supportOk, brandHTML, copyText, CONFIG, intlPrice, usdFmt, usdRate, supportWa, hasGuarantee, TYPES, typeLabel } from "../ui.js?v=202610091700";
+import { go, refreshUser, rerender } from "../app.js?v=202610091700";
+import { mountCaptcha, captchaOn } from "../captcha.js?v=202610091700";
 const needCaptcha = () => toast(tr("Confirma que não és um robô.", "Please confirm you're not a robot."), "err");
 
 const afterLogin = () => {
@@ -261,7 +261,7 @@ const BACK = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-
 const PAY_IC = { paypal: ["P", "#1F4FA3"] };
 const CARD_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 10h19M6.5 15h4"/></svg>`;
 const payIcon = (m) => {
-  if (m === "mpesa" || m === "emola") return `<span class="pm-ic logo"><img src="img/pay/${m}.png?v=202610080932" alt="${m === "mpesa" ? "M-Pesa" : "e-Mola"}"></span>`;
+  if (m === "mpesa" || m === "emola") return `<span class="pm-ic logo"><img src="img/pay/${m}.png?v=202610091700" alt="${m === "mpesa" ? "M-Pesa" : "e-Mola"}"></span>`;
   if (m === "card" || m === "card_mz") return `<span class="pm-ic card">${CARD_SVG}</span>`;
   const [l, c] = PAY_IC[m] || ["•", "#0F5132"]; return `<span class="pm-ic" style="--c:${c}">${l}</span>`;
 };
@@ -658,29 +658,53 @@ export async function myCourses(main, _p, _q, alive) {
   // «Continuar onde parei»: o curso visto mais recentemente que ainda não está concluído
   const last = enr.filter((e) => e.courses && e.last_seen_at && e.last_lesson_id && titles[e.last_lesson_id]).sort((x, y) => String(y.last_seen_at).localeCompare(String(x.last_seen_at)))[0];
   const contHref = (e) => `#/aprender/${esc(e.course_id)}${e.last_lesson_id && titles[e.last_lesson_id] ? `/${esc(e.last_lesson_id)}` : ""}`;
+  // Secções por tipo de produto: cursos, ebooks, templates e áudios/podcasts (separador «Todos» mostra todas)
+  const TYPE_TABS = [["", tr("Todos", "All")], ["curso", tr("Cursos", "Courses")], ["ebook", "Ebooks"], ["template", "Templates"], ["audio", tr("Áudios e podcasts", "Audio & podcasts")]];
+  const typeOf = (c) => (TYPES.includes(c?.product_type) ? c.product_type : "curso");
+  const tipo = TYPE_TABS.some(([k]) => k && k === _q?.tipo) ? _q.tipo : "";
+  const countBy = {};
+  enr.forEach((e) => { if (e.courses) countBy[typeOf(e.courses)] = (countBy[typeOf(e.courses)] || 0) + 1; });
+  const SEC = { curso: tr("Os meus cursos", "My courses"), ebook: tr("Os meus ebooks", "My ebooks"), template: tr("Os meus templates", "My templates"), audio: tr("Os meus áudios e podcasts", "My audio & podcasts") };
+  const EMPTY = { curso: tr("Ainda não tens cursos.", "You don't have any courses yet."), ebook: tr("Ainda não tens ebooks.", "You don't have any ebooks yet."), template: tr("Ainda não tens templates.", "You don't have any templates yet."), audio: tr("Ainda não tens áudios nem podcasts.", "You don't have any audio or podcasts yet.") };
+  const GO = {
+    curso: [tr("Começar", "Start"), tr("Continuar", "Continue"), tr("Rever", "Review")],
+    ebook: [tr("Ler", "Read"), tr("Continuar a ler", "Keep reading"), tr("Reler", "Read again")],
+    template: [tr("Abrir", "Open"), tr("Abrir", "Open"), tr("Abrir", "Open")],
+    audio: [tr("Ouvir", "Listen"), tr("Continuar a ouvir", "Keep listening"), tr("Ouvir de novo", "Listen again")],
+  };
+  const card = (e) => {
+    const c = e.courses, t = typeOf(c);
+    const pct = pctOf(c), started = (done[c.id] || 0) > 0 || e.last_lesson_id;
+    return `<a class="card course-card" href="${contHref(e)}">${coverHTML(c)}<div class="card-body">
+      <span class="mc-type">${esc(typeLabel(t))}</span>
+      <h3>${esc(c.title)}</h3><p class="muted small">${esc(c.producer_name || "")}</p>
+      <div class="progress"><div style="width:${pct}%"></div></div>
+      <div class="row-between small"><span>${pct}% ${tr("concluído", "complete")}</span><span class="cc-go">${GO[t][pct === 100 ? 2 : started ? 1 : 0]} ${ICON.arrow}</span></div>
+    </div></a>`;
+  };
+  const section = (t) => {
+    const items = enr.filter((e) => e.courses && typeOf(e.courses) === t);
+    if (!items.length) return "";
+    return `<h2 class="mc-h">${SEC[t]} <span class="tab-n">${items.length}</span></h2><div class="grid courses">${items.map(card).join("")}</div>`;
+  };
+  const tabs = `<nav class="tabs mc-tabs">${TYPE_TABS.map(([k, l]) => `<a href="#/meus-cursos${k ? `?tipo=${k}` : ""}" class="${k === tipo ? "on" : ""}">${l}${k && countBy[k] ? ` <span class="tab-n">${countBy[k]}</span>` : ""}</a>`).join("")}</nav>`;
+  const library = !enr.length
+    ? emptyState(tr("Ainda não tens produtos.", "You don't have any products yet."), tr("Explora a montra e começa a aprender hoje.", "Explore the marketplace and start learning today."), `<a class="btn btn-primary" href="#/cursos">${tr("Ver produtos", "Browse products")}</a>`)
+    : tabs + (tipo ? (section(tipo) || emptyState(EMPTY[tipo], "", `<a class="btn btn-primary" href="#/cursos?tipo=${esc(tipo)}">${tr("Ver na montra", "Browse the store")}</a>`)) : ["curso", "ebook", "template", "audio"].map(section).join(""));
   main.innerHTML = dashShell("cursos", `
     <h1 class="page-title">${tr("Área de membros", "Members area")}</h1>
     <p class="muted" style="margin:-12px 0 18px">${tr("Os produtos que compraste. Continua de onde paraste.", "The products you bought. Continue where you left off.")}</p>
     ${last ? `<a class="continue-hero" href="${contHref(last)}">
         <div class="ch-img">${coverHTML(last.courses)}<span class="ch-play">${ICON.play}</span></div>
         <div class="ch-txt"><small>${tr("Continuar onde paraste", "Continue where you left off")}</small><h2>${esc(last.courses.title)}</h2>
-          <p>${tr("Aula", "Lesson")}: <b>${esc(titles[last.last_lesson_id])}</b></p>
+          <p>${typeOf(last.courses) === "curso" ? tr("Aula", "Lesson") : tr("Conteúdo", "Content")}: <b>${esc(titles[last.last_lesson_id])}</b></p>
           <div class="progress"><div style="width:${pctOf(last.courses)}%"></div></div><span class="small">${pctOf(last.courses)}% ${tr("concluído", "complete")}</span>
           <span class="btn btn-primary">${ICON.play} ${tr("Continuar", "Continue")}</span></div></a>` : ""}
     ${pending.length ? `<div class="panel"><h3>${tr("Pagamentos pendentes", "Pending payments")}</h3>
       <div class="table-wrap"><table class="table"><thead><tr><th>${tr("Curso", "Course")}</th><th>${tr("Referência", "Reference")}</th><th>${tr("Valor", "Amount")}</th><th></th></tr></thead><tbody>
       ${pending.map((o) => `<tr><td>${esc(o.courses?.title || "")}</td><td><b>${esc(o.reference)}</b></td><td>${esc(mzn(o.amount_mzn))}</td><td><a class="btn btn-sm btn-primary" href="#/checkout/${esc(o.course_id)}">${tr("Concluir pagamento", "Complete payment")}</a></td></tr>`).join("")}
       </tbody></table></div></div>` : ""}
-    ${enr.length ? `<h2 class="mc-h">${tr("Os meus produtos", "My products")}</h2>` : ""}
-    <div class="grid courses">${enr.length ? enr.map((e) => {
-      const c = e.courses; if (!c) return "";
-      const pct = pctOf(c), started = (done[c.id] || 0) > 0 || e.last_lesson_id;
-      return `<a class="card course-card" href="${contHref(e)}">${coverHTML(c)}<div class="card-body">
-        <h3>${esc(c.title)}</h3><p class="muted small">${esc(c.producer_name || "")}</p>
-        <div class="progress"><div style="width:${pct}%"></div></div>
-        <div class="row-between small"><span>${pct}% ${tr("concluído", "complete")}</span><span class="cc-go">${pct === 100 ? tr("Rever", "Review") : started ? tr("Continuar", "Continue") : tr("Começar", "Start")} ${ICON.arrow}</span></div>
-      </div></a>`;
-    }).join("") : emptyState(tr("Ainda não tens cursos.", "You don't have any courses yet."), tr("Explora a montra e começa a aprender hoje.", "Explore the marketplace and start learning today."), `<a class="btn btn-primary" href="#/cursos">${tr("Ver cursos", "Browse courses")}</a>`)}</div>
+    ${library}
   `);
 }
 

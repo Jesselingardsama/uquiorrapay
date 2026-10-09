@@ -1,5 +1,5 @@
 // Única camada que fala com o Supabase. Todas as funções devolvem dados ou lançam Error.
-import { CONFIG } from "./config.js?v=202610080932";
+import { CONFIG } from "./config.js?v=202610091700";
 
 // Se a sessão expirou (comum no telemóvel depois de estar parado), renova e repete o pedido sozinho.
 // Antes era preciso repetir a acção duas vezes (a 1.ª falhava, a 2.ª já ia com a sessão renovada).

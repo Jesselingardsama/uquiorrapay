@@ -1,7 +1,7 @@
 // Verificação de identidade (KYC): o utilizador envia a frente e o verso do documento; a equipa confirma.
-import { api } from "../api.js?v=202610080932";
-import { state, tr, esc, toast, dashShell, ICON, dateTime } from "../ui.js?v=202610080932";
-import { rerender } from "../app.js?v=202610080932";
+import { api } from "../api.js?v=202610091700";
+import { state, tr, esc, toast, dashShell, ICON, dateTime } from "../ui.js?v=202610091700";
+import { rerender } from "../app.js?v=202610091700";
 
 export const DOCS = () => ({ bi: tr("Bilhete de Identidade (BI)", "National ID (BI)"), passaporte: tr("Passaporte", "Passport"), dire: "DIRE", carta: tr("Carta de condução", "Driving licence") });
 export const KYC_TXT = () => ({ pending: tr("Em análise", "Under review"), approved: tr("Verificada", "Verified"), rejected: tr("Recusada", "Rejected") });

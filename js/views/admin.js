@@ -1,11 +1,11 @@
 // Administração: resumo de tarefas, revisão de produtos, pagamentos, levantamentos, utilizadores, definições e segurança.
-import { api } from "../api.js?v=202610080932";
-import { state, tr, esc, mzn, siteUrl, statusBadge, date, toast, modal, emptyState, methodLabel, isAdmin, dashShell, supportOk, ICON, copyText, catLabel, dateTime, trackUpload, donutSVG, areaSVG, dailySeries, deltaHTML } from "../ui.js?v=202610080932";
-import { go, rerender, bumpAdminCounts } from "../app.js?v=202610080932";
-import { adminSecurityLog } from "./security.js?v=202610080932";
-import { pushCardHTML, wirePush } from "../push.js?v=202610080932";
-import { DOCS, KYC_TXT } from "./kyc.js?v=202610080932";
-import { OB } from "./onboarding.js?v=202610080932";
+import { api } from "../api.js?v=202610091700";
+import { state, tr, esc, mzn, siteUrl, statusBadge, date, toast, modal, emptyState, methodLabel, isAdmin, dashShell, supportOk, ICON, copyText, catLabel, dateTime, trackUpload, donutSVG, areaSVG, dailySeries, deltaHTML } from "../ui.js?v=202610091700";
+import { go, rerender, bumpAdminCounts } from "../app.js?v=202610091700";
+import { adminSecurityLog } from "./security.js?v=202610091700";
+import { pushCardHTML, wirePush } from "../push.js?v=202610091700";
+import { DOCS, KYC_TXT } from "./kyc.js?v=202610091700";
+import { OB } from "./onboarding.js?v=202610091700";
 
 const TABS = () => ({
   resumo: [tr("Resumo", "Overview"), tr("O que precisa da tua atenção hoje.", "What needs your attention today.")],
